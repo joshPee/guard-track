@@ -78,7 +78,7 @@ export function DashboardSidebar() {
           </div>
           {!isCollapsed && (
             <div className="overflow-hidden">
-              <h1 className="text-lg font-bold text-slate-900 dark:text-white whitespace-nowrap">PCC Security</h1>
+              <h1 className="text-lg font-bold text-slate-900 dark:text-white whitespace-nowrap">PCC Security Unit</h1>
               <p className="text-[11px] text-slate-500/80 dark:text-slate-400/80 whitespace-nowrap font-medium">Guard Attendance</p>
             </div>
           )}

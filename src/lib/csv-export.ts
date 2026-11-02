@@ -76,7 +76,7 @@ export function exportDailyReportCSV(
   ])
 
   const csvContent = [
-    `PCC Security Department - Daily Attendance Report`,
+    `PCC Security Unit - Daily Attendance Report`,
     `Date: ${date}`,
     `Shift: ${shift === 'day-shift' ? 'Day Shift (06:00 - 18:00)' : 'Night Shift (18:00 - 06:00)'}`,
     `Scope: ${isSingle ? `Guard ${guardName}` : 'All Guards'}`,
@@ -140,7 +140,7 @@ export function exportSingleGuardWeeklyCSV(
   })
 
   const csvContent = [
-    `PCC Security Department - Individual Guard Weekly Attendance Report`,
+    `PCC Security Unit - Individual Guard Weekly Attendance Report`,
     `Guard Name: "${guard.fullName}"`,
     `Badge ID: "${guard.badgeId}"`,
     `Phone: "${guard.phone || 'N/A'}"`,
@@ -204,7 +204,7 @@ export function exportAllGuardsWeeklyCSV(data: WeeklyReportData, weekStart: stri
   })
 
   const csvContent = [
-    `PCC Security Department - Weekly Attendance Report (All Guards)`,
+    `PCC Security Unit - Weekly Attendance Report (All Guards)`,
     `Week Starting: ${weekStart}`,
     `Total Guards: ${data.guards.length}`,
     '',
@@ -263,7 +263,7 @@ export function exportSingleGuardMonthlyCSV(
   })
 
   const csvContent = [
-    `PCC Security Department - Individual Guard Monthly Attendance Report`,
+    `PCC Security Unit - Individual Guard Monthly Attendance Report`,
     `Guard Name: "${guard.fullName}"`,
     `Badge ID: "${guard.badgeId}"`,
     `Phone: "${guard.phone || 'N/A'}"`,
@@ -336,7 +336,7 @@ export function exportAllGuardsMonthlyCSV(data: MonthlyReportData, month: string
   ])
 
   const csvContent = [
-    `PCC Security Department - Monthly Attendance Report (All Guards)`,
+    `PCC Security Unit - Monthly Attendance Report (All Guards)`,
     `Month: ${month}`,
     `Total Guards: ${data.guards.length}`,
     `Total Days: ${data.days.length}`,
