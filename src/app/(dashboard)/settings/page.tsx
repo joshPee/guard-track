@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -216,7 +217,22 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="pt-4">
             {loading ? (
-              <p className="text-sm text-slate-400 py-6 text-center">Loading shift configurations...</p>
+              <div className="space-y-4 py-2">
+                {[1, 2].map((i) => (
+                  <div key={i} className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-9 w-48 rounded-lg" />
+                      <Skeleton className="h-8 w-20 rounded-lg" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <Skeleton className="h-9 rounded-lg" />
+                      <Skeleton className="h-9 rounded-lg" />
+                      <Skeleton className="h-9 rounded-lg" />
+                      <Skeleton className="h-9 rounded-lg" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : shifts.length === 0 ? (
               <p className="text-sm text-slate-400 py-6 text-center">No shifts configured.</p>
             ) : (

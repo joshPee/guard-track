@@ -57,6 +57,17 @@ export const authOptions: NextAuthOptions = {
       }
       return session
     },
+    async redirect({ url, baseUrl }) {
+      // Allows relative callback URLs
+      if (url.startsWith('/')) return url
+      // Allows callback URLs on the same origin
+      try {
+        const parsedUrl = new URL(url)
+        const parsedBase = new URL(baseUrl)
+        if (parsedUrl.host === parsedBase.host) return url
+      } catch {}
+      return baseUrl
+    },
   },
   pages: {
     signIn: '/login',

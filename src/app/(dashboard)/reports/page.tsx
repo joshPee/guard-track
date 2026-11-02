@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -499,11 +500,29 @@ export default function ReportsPage() {
 
         <CardContent className="pt-4">
           {loading ? (
-            <div className="py-16 text-center text-slate-400">
-              <div className="inline-flex items-center gap-2">
-                <div className="h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                <span className="text-sm font-medium">Generating report data...</span>
+            <div className="space-y-3 py-4">
+              {/* Summary cards skeleton */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                {[1,2,3,4].map((i) => (
+                  <div key={i} className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                    <Skeleton className="h-3.5 w-20" />
+                    <Skeleton className="h-6 w-12" />
+                  </div>
+                ))}
               </div>
+              {/* Table rows skeleton */}
+              {[1,2,3,4,5,6,7,8].map((i) => (
+                <div key={i} className="flex items-center gap-4 p-3 border-b border-slate-100 dark:border-slate-800">
+                  <Skeleton className="h-9 w-9 rounded-full shrink-0" />
+                  <div className="space-y-1.5 flex-1">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                  <Skeleton className="h-4 w-14 hidden sm:block" />
+                  <Skeleton className="h-4 w-14 hidden sm:block" />
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                </div>
+              ))}
             </div>
           ) : !reportData ? (
             <div className="py-16 text-center text-slate-400">

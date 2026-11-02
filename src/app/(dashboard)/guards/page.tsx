@@ -41,6 +41,7 @@ import { useSession } from 'next-auth/react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Breadcrumb } from '@/components/ui/breadcrumb'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { TableRowSkeleton } from '@/components/ui/skeleton'
 import { toast } from '@/components/ui/toast'
 import Link from 'next/link'
 
@@ -334,9 +335,8 @@ export default function GuardsPage() {
         {/* Guard List */}
         <CardContent className="p-0">
           {loading ? (
-            <div className="py-12 text-center text-slate-400">
-              <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 opacity-50" />
-              <p className="text-sm">Loading security personnel...</p>
+            <div className="p-2">
+              <TableRowSkeleton rows={8} cols={4} />
             </div>
           ) : filteredGuards.length === 0 ? (
             <div className="py-12 text-center text-slate-400">

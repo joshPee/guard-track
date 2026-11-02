@@ -147,7 +147,12 @@ export function DashboardSidebar() {
           </div>
         )}
         <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
+          onClick={async () => {
+            try {
+              await signOut({ redirect: false })
+            } catch {}
+            window.location.href = '/login'
+          }}
           className={cn(
             'flex items-center gap-3 w-full px-3 py-2.5 text-[13px] font-medium rounded-lg transition-all duration-200 text-slate-600 dark:text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-700 dark:hover:text-rose-300',
             isCollapsed && 'justify-center'

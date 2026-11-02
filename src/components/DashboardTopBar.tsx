@@ -38,8 +38,11 @@ export function DashboardTopBar() {
     return `${greeting}, ${userName}`
   }
 
-  const handleSignOut = () => {
-    signOut({ callbackUrl: '/login' })
+  const handleSignOut = async () => {
+    try {
+      await signOut({ redirect: false })
+    } catch {}
+    window.location.href = '/login'
   }
 
   return (

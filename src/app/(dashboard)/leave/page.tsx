@@ -51,6 +51,7 @@ import {
 import { useSession } from 'next-auth/react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Breadcrumb } from '@/components/ui/breadcrumb'
+import { TableRowSkeleton } from '@/components/ui/skeleton'
 import { toast } from '@/components/ui/toast'
 import { format, differenceInCalendarDays, isWithinInterval, startOfDay, endOfDay } from 'date-fns'
 
@@ -651,9 +652,8 @@ export default function LeaveManagementPage() {
 
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-12 text-center text-slate-500">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-emerald-600" />
-              <p className="text-xs">Loading leave & exeat records...</p>
+            <div className="p-2">
+              <TableRowSkeleton rows={6} cols={5} />
             </div>
           ) : filteredRecords.length === 0 ? (
             <div className="p-12 text-center">

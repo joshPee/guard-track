@@ -45,9 +45,12 @@ export function MobileBottomNav() {
     if (navigator.vibrate) navigator.vibrate(10)
   }
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     if (navigator.vibrate) navigator.vibrate(10)
-    signOut({ callbackUrl: '/login' })
+    try {
+      await signOut({ redirect: false })
+    } catch {}
+    window.location.href = '/login'
   }
 
   return (

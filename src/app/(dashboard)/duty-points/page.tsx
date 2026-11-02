@@ -39,6 +39,7 @@ import {
 import { useSession } from 'next-auth/react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Breadcrumb } from '@/components/ui/breadcrumb'
+import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from '@/components/ui/toast'
 
 interface Zone {
@@ -384,12 +385,20 @@ export default function DutyPointsPage() {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-sm">
               {loading ? (
-                <tr>
-                  <td colSpan={isSupervisor ? 6 : 5} className="py-12 text-center text-slate-400">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 opacity-50" />
-                    <p>Loading duty points roster...</p>
-                  </td>
-                </tr>
+                Array.from({ length: 7 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="py-3.5 px-4"><Skeleton className="h-4 w-6" /></td>
+                    <td className="py-3.5 px-4"><Skeleton className="h-4 w-44" /></td>
+                    <td className="py-3.5 px-4"><Skeleton className="h-4 w-28" /></td>
+                    <td className="py-3.5 px-4"><Skeleton className="h-5 w-20 rounded-full" /></td>
+                    <td className="py-3.5 px-4"><Skeleton className="h-4 w-12" /></td>
+                    {isSupervisor && (
+                      <td className="py-3.5 px-4 text-right">
+                        <Skeleton className="h-7 w-14 ml-auto rounded-lg" />
+                      </td>
+                    )}
+                  </tr>
+                ))
               ) : sortedAndFiltered.length === 0 ? (
                 <tr>
                   <td colSpan={isSupervisor ? 6 : 5} className="py-12 text-center text-slate-400">
