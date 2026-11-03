@@ -626,17 +626,27 @@ export default function AttendancePage() {
       else if (statusFilter === 'LEAVE') matchesStatus = row.status === 'LEAVE'
       else if (statusFilter === 'PENDING') matchesStatus = !row.signInTime && row.status !== 'OFF' && row.status !== 'EXCUSED' && row.status !== 'LEAVE'
 
-      let matchesShiftType = true
+      // Filter by main shift selector (day-shift vs night-shift)
+      // This filters which guards should be on duty for the selected shift
       const shiftType = getShiftType(row.signInTime)
+      let matchesMainShift = true
+      if (shift === 'day-shift') {
+        // Show DS guards OR pending guards (no sign-in time yet)
+        matchesMainShift = shiftType === 'DS' || !row.signInTime
+      } else if (shift === 'night-shift') {
+        // Show NS guards OR pending guards (no sign-in time yet)
+        matchesMainShift = shiftType === 'NS' || !row.signInTime
+      }
+
+      // Filter by shift type chips (ALL/DS/NS)
+      let matchesShiftType = true
       if (shiftTypeFilter === 'DS') {
-        // Show guards with DS sign-in time OR guards without sign-in time (pending)
         matchesShiftType = shiftType === 'DS' || !row.signInTime
       } else if (shiftTypeFilter === 'NS') {
-        // Show guards with NS sign-in time OR guards without sign-in time (pending)
         matchesShiftType = shiftType === 'NS' || !row.signInTime
       }
 
-      return matchesSearch && matchesStatus && matchesShiftType
+      return matchesSearch && matchesStatus && matchesMainShift && matchesShiftType
     })
 
     // Apply sort
