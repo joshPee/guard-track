@@ -146,7 +146,7 @@ export default function AttendancePage() {
   const loadRoster = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/attendance?date=${date}&shiftId=${shift}`)
+      const res = await fetch(`/api/attendance?date=${date}`)
       if (res.ok) {
         const records = await res.json()
         const rows: AttendanceRow[] = guards.map((guard) => {
@@ -179,8 +179,10 @@ export default function AttendancePage() {
       newRows[index].signInTime = shift === 'day-shift' ? '06:00' : '18:00'
     }
     if (field === 'signInTime' && value) {
-      // Auto adjust status if time set
-      const cutoff = shift === 'day-shift' ? '06:15' : '18:15'
+      // Auto adjust status if time set based on actual time, not selected shift
+      const [hours, minutes] = value.split(':').map(Number)
+      const isDayShift = hours >= 6 && hours < 18
+      const cutoff = isDayShift ? '06:15' : '18:15'
       newRows[index].status = value <= cutoff ? 'PRESENT' : 'LATE'
     }
     setAttendanceRows(newRows)
@@ -200,6 +202,7 @@ export default function AttendancePage() {
   const markRowPresent = (index: number, presetTime?: string) => {
     const newRows = [...attendanceRows]
     newRows[index].status = 'PRESENT'
+    // Use preset time if provided, otherwise use 06:00 or 18:00 based on the current time context
     newRows[index].signInTime = presetTime || (shift === 'day-shift' ? '06:00' : '18:00')
     setAttendanceRows(newRows)
     setHasChanges(true)
@@ -208,6 +211,7 @@ export default function AttendancePage() {
   const markRowLate = (index: number, presetTime?: string) => {
     const newRows = [...attendanceRows]
     newRows[index].status = 'LATE'
+    // Use preset time if provided, otherwise use 06:20 or 18:20 based on the current time context
     newRows[index].signInTime = presetTime || (shift === 'day-shift' ? '06:20' : '18:20')
     setAttendanceRows(newRows)
     setHasChanges(true)
@@ -291,12 +295,17 @@ export default function AttendancePage() {
     setBookSaving(true)
     try {
       const dutyPointToUse = bookDutyPointId || selectedGuard.defaultDutyPoint?.id || dutyPoints[0]?.id || ''
+
+      // Determine shift ID based on sign-in time
+      const [hours] = bookTime.split(':').map(Number)
+      const shiftIdForTime = hours >= 6 && hours < 18 ? 'day-shift' : 'night-shift'
+
       const res = await fetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           guardId: selectedGuard.id,
-          shiftId: shift,
+          shiftId: shiftIdForTime,
           dutyPointId: dutyPointToUse,
           shiftDate: date,
           signInTime: bookTime ? `${date}T${bookTime}` : null,
@@ -361,6 +370,13 @@ export default function AttendancePage() {
   const saveAllAttendance = async () => {
     setSaving(true)
     try {
+      // Determine shift ID based on sign-in time
+      const getShiftIdForTime = (signInTime: string) => {
+        if (!signInTime) return shift
+        const [hours] = signInTime.split(':').map(Number)
+        return hours >= 6 && hours < 18 ? 'day-shift' : 'night-shift'
+      }
+
       // Parallel batch save for speed
       const promises = attendanceRows.map(row =>
         fetch('/api/attendance', {
@@ -368,7 +384,7 @@ export default function AttendancePage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             guardId: row.guardId,
-            shiftId: shift,
+            shiftId: getShiftIdForTime(row.signInTime),
             dutyPointId: row.dutyPointId,
             shiftDate: date,
             signInTime: row.signInTime ? `${date}T${row.signInTime}` : null,
@@ -448,10 +464,11 @@ export default function AttendancePage() {
   const bulkMarkPresent = () => {
     setAttendanceRows(prev => prev.map(row => {
       if (selectedGuardIds.has(row.guardId)) {
+        const time = shift === 'day-shift' ? '06:00' : '18:00'
         return {
           ...row,
           status: 'PRESENT',
-          signInTime: shift === 'day-shift' ? '06:00' : '18:00',
+          signInTime: time,
         }
       }
       return row
@@ -464,10 +481,11 @@ export default function AttendancePage() {
   const bulkMarkLate = () => {
     setAttendanceRows(prev => prev.map(row => {
       if (selectedGuardIds.has(row.guardId)) {
+        const time = shift === 'day-shift' ? '06:20' : '18:20'
         return {
           ...row,
           status: 'LATE',
-          signInTime: shift === 'day-shift' ? '06:20' : '18:20',
+          signInTime: time,
         }
       }
       return row
@@ -609,8 +627,14 @@ export default function AttendancePage() {
       else if (statusFilter === 'PENDING') matchesStatus = !row.signInTime && row.status !== 'OFF' && row.status !== 'EXCUSED' && row.status !== 'LEAVE'
 
       let matchesShiftType = true
-      if (shiftTypeFilter === 'DS') matchesShiftType = getShiftType(row.signInTime) === 'DS'
-      else if (shiftTypeFilter === 'NS') matchesShiftType = getShiftType(row.signInTime) === 'NS'
+      const shiftType = getShiftType(row.signInTime)
+      if (shiftTypeFilter === 'DS') {
+        // Show guards with DS sign-in time OR guards without sign-in time (pending)
+        matchesShiftType = shiftType === 'DS' || !row.signInTime
+      } else if (shiftTypeFilter === 'NS') {
+        // Show guards with NS sign-in time OR guards without sign-in time (pending)
+        matchesShiftType = shiftType === 'NS' || !row.signInTime
+      }
 
       return matchesSearch && matchesStatus && matchesShiftType
     })

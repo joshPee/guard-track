@@ -82,7 +82,6 @@ model AttendanceRecord {
   dutyPointId  String
   shiftDate    DateTime
   signInTime   DateTime?
-  signOutTime  DateTime?
   status       AttendanceStatus
   minutesLate  Int               @default(0)
   remarks      String?

@@ -22,7 +22,13 @@ export default withAuth(
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token,
+      authorized: ({ token, req }) => {
+        // Allow access if token exists
+        return !!token
+      },
+    },
+    pages: {
+      signIn: '/login',
     },
   }
 )
