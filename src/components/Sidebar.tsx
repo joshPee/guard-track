@@ -14,6 +14,8 @@ import {
   ChevronRight,
   LogOut,
   CalendarCheck,
+  CalendarDays,
+  Calendar as CalendarIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
@@ -35,6 +37,8 @@ function getNavigationSections(role?: string) {
         { name: 'Guards', href: '/guards', icon: Users },
         { name: 'Duty Points', href: '/duty-points', icon: MapPin },
         { name: 'Leave & Exeats', href: '/leave', icon: CalendarCheck },
+        { name: 'Heatmap', href: '/heatmap', icon: CalendarDays },
+        { name: 'Schedule', href: '/schedule', icon: CalendarIcon },
       ],
     },
     {

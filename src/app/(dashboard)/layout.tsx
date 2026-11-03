@@ -6,6 +6,7 @@ import { useEffect } from 'react'
 import { DashboardSidebar } from '@/components/Sidebar'
 import { DashboardTopBar } from '@/components/DashboardTopBar'
 import { MobileBottomNav } from '@/components/MobileBottomNav'
+import { QuickActionFAB } from '@/components/QuickActionFAB'
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession()
@@ -35,6 +36,9 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
       {/* Mobile bottom nav — hidden on desktop via lg:hidden inside component */}
       <MobileBottomNav />
+
+      {/* Quick Action FAB — mobile only */}
+      <QuickActionFAB />
     </div>
   )
 }

@@ -9,6 +9,7 @@ const guardSchema = z.object({
   badgeId: z.string().min(1),
   phone: z.string().optional(),
   defaultDutyPointId: z.string().optional(),
+  photoUrl: z.string().optional(),
 })
 
 export async function GET(req: Request) {

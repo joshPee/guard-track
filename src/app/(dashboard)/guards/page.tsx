@@ -58,6 +58,7 @@ interface Guard {
   status: string
   defaultDutyPointId?: string | null
   defaultDutyPoint: { id?: string; name: string } | null
+  photoUrl: string | null
 }
 
 export default function GuardsPage() {
@@ -82,6 +83,7 @@ export default function GuardsPage() {
     phone: '',
     status: 'ACTIVE',
     defaultDutyPointId: '',
+    photoUrl: '',
   })
 
   useEffect(() => {
@@ -134,6 +136,7 @@ export default function GuardsPage() {
       phone: '',
       status: 'ACTIVE',
       defaultDutyPointId: dutyPoints[0]?.id || '',
+      photoUrl: '',
     })
     setFormError('')
     setShowAddModal(true)
@@ -147,8 +150,21 @@ export default function GuardsPage() {
       phone: guard.phone || '',
       status: guard.status,
       defaultDutyPointId: guard.defaultDutyPointId || guard.defaultDutyPoint?.id || '',
+      photoUrl: guard.photoUrl || '',
     })
     setFormError('')
+  }
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // For now, convert to base64 for demo (in production, use a proper image hosting service)
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setFormData(prev => ({ ...prev, photoUrl: reader.result as string }))
+    }
+    reader.readAsDataURL(file)
   }
 
   const handleSaveGuard = async (e: React.FormEvent) => {
@@ -170,6 +186,7 @@ export default function GuardsPage() {
           phone: formData.phone || null,
           status: formData.status,
           defaultDutyPointId: formData.defaultDutyPointId || null,
+          photoUrl: formData.photoUrl || null,
         }),
       })
 
@@ -598,6 +615,46 @@ export default function GuardsPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="photo" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Guard Photo
+              </Label>
+              <div className="flex items-start gap-3">
+                {formData.photoUrl && (
+                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0">
+                    <img
+                      src={formData.photoUrl}
+                      alt="Guard photo preview"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                <div className="flex-1 space-y-2">
+                  <Input
+                    id="photo"
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="text-sm bg-slate-50 dark:bg-slate-800/80"
+                  />
+                  <p className="text-[10px] text-slate-400">
+                    For demo: images stored as base64. In production, use a proper image hosting service.
+                  </p>
+                  {formData.photoUrl && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setFormData(prev => ({ ...prev, photoUrl: '' }))}
+                      className="h-7 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                    >
+                      Remove Photo
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="space-y-1.5">

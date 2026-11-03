@@ -37,6 +37,7 @@ interface AttendanceRow {
   badgeId: string
   dutyPointId: string
   signInTime: string
+  signOutTime: string
   status: string
   remarks: string
 }
@@ -75,6 +76,7 @@ export default function AttendancePage() {
   const [rosterSearch, setRosterSearch] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
   const [sortMode, setSortMode] = useState<'alpha' | 'status' | 'pending'>('alpha')
+  const [selectedGuardIds, setSelectedGuardIds] = useState<Set<string>>(new Set())
 
   // View Mode: 'book-mode' for rapid mobile physical book entry, 'roster-mode' for full roster
   const [activeTab, setActiveTab] = useState<'book-mode' | 'roster-mode'>('book-mode')
@@ -155,6 +157,7 @@ export default function AttendancePage() {
             badgeId: guard.badgeId,
             dutyPointId: existing?.dutyPointId || guard.defaultDutyPoint?.id || dutyPoints[0]?.id || '',
             signInTime: existing?.signInTime ? new Date(existing.signInTime).toISOString().slice(11, 16) : '',
+            signOutTime: existing?.signOutTime ? new Date(existing.signOutTime).toISOString().slice(11, 16) : '',
             status: existing?.status || 'ABSENT',
             remarks: existing?.remarks || '',
           }
@@ -183,6 +186,21 @@ export default function AttendancePage() {
     }
     setAttendanceRows(newRows)
     setHasChanges(true)
+  }
+
+  // Calculate overtime hours
+  const calculateOvertime = (signInTime: string, signOutTime: string) => {
+    if (!signInTime || !signOutTime) return 0
+
+    const shiftEnd = shift === 'day-shift' ? '18:00' : '06:00'
+    const [signOutH, signOutM] = signOutTime.split(':').map(Number)
+    const [shiftEndH, shiftEndM] = shiftEnd.split(':').map(Number)
+
+    const signOutMinutes = signOutH * 60 + signOutM
+    const shiftEndMinutes = shiftEndH * 60 + shiftEndM
+
+    const overtimeMinutes = signOutMinutes - shiftEndMinutes
+    return overtimeMinutes > 0 ? overtimeMinutes : 0
   }
 
   const markRowPresent = (index: number, presetTime?: string) => {
@@ -360,6 +378,7 @@ export default function AttendancePage() {
             dutyPointId: row.dutyPointId,
             shiftDate: date,
             signInTime: row.signInTime ? `${date}T${row.signInTime}` : null,
+            signOutTime: row.signOutTime ? `${date}T${row.signOutTime}` : null,
             status: row.status,
             minutesLate: 0,
             remarks: row.remarks,
@@ -410,6 +429,108 @@ export default function AttendancePage() {
     })))
     setHasChanges(true)
     toast.success('All guards marked Present at shift start')
+  }
+
+  // Bulk operations
+  const toggleSelectGuard = (guardId: string) => {
+    setSelectedGuardIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(guardId)) {
+        newSet.delete(guardId)
+      } else {
+        newSet.add(guardId)
+      }
+      return newSet
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedGuardIds.size === filteredRows.length) {
+      setSelectedGuardIds(new Set())
+    } else {
+      setSelectedGuardIds(new Set(filteredRows.map(r => r.guardId)))
+    }
+  }
+
+  const bulkMarkPresent = () => {
+    setAttendanceRows(prev => prev.map(row => {
+      if (selectedGuardIds.has(row.guardId)) {
+        return {
+          ...row,
+          status: 'PRESENT',
+          signInTime: shift === 'day-shift' ? '06:00' : '18:00',
+        }
+      }
+      return row
+    }))
+    setHasChanges(true)
+    toast.success(`Marked ${selectedGuardIds.size} guards as Present`)
+    setSelectedGuardIds(new Set())
+  }
+
+  const bulkMarkLate = () => {
+    setAttendanceRows(prev => prev.map(row => {
+      if (selectedGuardIds.has(row.guardId)) {
+        return {
+          ...row,
+          status: 'LATE',
+          signInTime: shift === 'day-shift' ? '06:20' : '18:20',
+        }
+      }
+      return row
+    }))
+    setHasChanges(true)
+    toast.success(`Marked ${selectedGuardIds.size} guards as Late`)
+    setSelectedGuardIds(new Set())
+  }
+
+  const bulkMarkAbsent = () => {
+    setAttendanceRows(prev => prev.map(row => {
+      if (selectedGuardIds.has(row.guardId)) {
+        return {
+          ...row,
+          status: 'ABSENT',
+          signInTime: '',
+        }
+      }
+      return row
+    }))
+    setHasChanges(true)
+    toast.success(`Marked ${selectedGuardIds.size} guards as Absent`)
+    setSelectedGuardIds(new Set())
+  }
+
+  const bulkMarkOff = () => {
+    setAttendanceRows(prev => prev.map(row => {
+      if (selectedGuardIds.has(row.guardId)) {
+        return {
+          ...row,
+          status: 'OFF',
+          signInTime: '',
+          remarks: row.remarks || 'Roster Off Day',
+        }
+      }
+      return row
+    }))
+    setHasChanges(true)
+    toast.success(`Marked ${selectedGuardIds.size} guards as Off`)
+    setSelectedGuardIds(new Set())
+  }
+
+  const bulkAssignDutyPoint = (dutyPointId: string) => {
+    setAttendanceRows(prev => prev.map(row => {
+      if (selectedGuardIds.has(row.guardId)) {
+        return {
+          ...row,
+          dutyPointId,
+        }
+      }
+      return row
+    }))
+    setHasChanges(true)
+    const dpName = dutyPoints.find(dp => dp.id === dutyPointId)?.name || 'Duty Point'
+    toast.success(`Assigned ${selectedGuardIds.size} guards to ${dpName}`)
+    setSelectedGuardIds(new Set())
   }
 
   // Export CSV
@@ -1098,6 +1219,22 @@ export default function AttendancePage() {
             </div>
 
             <div className="flex gap-2 flex-wrap items-center">
+              {/* Select All Checkbox */}
+              {isSupervisor && (
+                <button
+                  type="button"
+                  onClick={toggleSelectAll}
+                  className="h-9 px-3 flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedGuardIds.size === filteredRows.length && filteredRows.length > 0 ? 'bg-blue-600 border-blue-600' : 'border-slate-300 dark:border-slate-600'}`}>
+                    {selectedGuardIds.size === filteredRows.length && filteredRows.length > 0 && (
+                      <Check className="h-3 w-3 text-white" />
+                    )}
+                  </div>
+                  <span className="hidden sm:inline">Select All</span>
+                </button>
+              )}
+
               {/* Search roster — with clear button */}
               <div className="relative flex-1 sm:flex-initial">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
@@ -1215,6 +1352,76 @@ export default function AttendancePage() {
             </div>
           </div>
 
+          {/* Bulk Actions Bar */}
+          {selectedGuardIds.size > 0 && isSupervisor && (
+            <div className="mx-4 sm:mx-6 my-3 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-blue-900 dark:text-blue-300">
+                    {selectedGuardIds.size} guard{selectedGuardIds.size !== 1 ? 's' : ''} selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedGuardIds(new Set())}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    Clear selection
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={bulkMarkPresent}
+                    className="h-8 text-xs gap-1"
+                  >
+                    <CheckCircle className="h-3 w-3" />
+                    Present
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={bulkMarkLate}
+                    className="h-8 text-xs gap-1"
+                  >
+                    <AlertCircle className="h-3 w-3" />
+                    Late
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={bulkMarkAbsent}
+                    className="h-8 text-xs gap-1"
+                  >
+                    <XCircle className="h-3 w-3" />
+                    Absent
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={bulkMarkOff}
+                    className="h-8 text-xs gap-1"
+                  >
+                    <Coffee className="h-3 w-3" />
+                    Off
+                  </Button>
+                  <Select onValueChange={bulkAssignDutyPoint}>
+                    <SelectTrigger className="h-8 w-40 text-xs">
+                      <SelectValue placeholder="Assign post..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {dutyPoints.map(dp => (
+                        <SelectItem key={dp.id} value={dp.id}>
+                          {dp.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
+
           {successMsg && (
             <div className="mx-4 sm:mx-6 my-3 p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 rounded-lg text-sm font-medium flex items-center gap-2">
               <CheckCircle className="h-4 w-4" />
@@ -1242,11 +1449,12 @@ export default function AttendancePage() {
                   {filteredRows.map((row) => {
                     const realIndex = attendanceRows.findIndex(r => r.guardId === row.guardId)
                     const isRecorded = row.signInTime && row.status !== 'ABSENT'
+                    const isSelected = selectedGuardIds.has(row.guardId)
 
                     return (
                       <div
                         key={row.guardId}
-                        className={`p-3.5 rounded-xl border transition-all ${row.status === 'PRESENT'
+                        className={`p-3.5 rounded-xl border transition-all ${isSelected ? 'ring-2 ring-blue-500' : ''} ${row.status === 'PRESENT'
                             ? 'border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/20 dark:bg-emerald-950/10'
                             : row.status === 'LATE'
                               ? 'border-amber-200 dark:border-amber-900/50 bg-amber-50/20 dark:bg-amber-950/10'
@@ -1255,9 +1463,18 @@ export default function AttendancePage() {
                                 : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
                           }`}
                       >
-                        {/* Header: Guard Name, Badge, Status */}
+                        {/* Header: Guard Name, Badge, Status, Checkbox */}
                         <div className="flex items-start justify-between gap-2 mb-2.5">
                           <div className="flex items-center gap-2.5 min-w-0">
+                            {isSupervisor && (
+                              <button
+                                type="button"
+                                onClick={() => toggleSelectGuard(row.guardId)}
+                                className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-blue-600 border-blue-600' : 'border-slate-300 dark:border-slate-600'}`}
+                              >
+                                {isSelected && <Check className="h-3 w-3 text-white" />}
+                              </button>
+                            )}
                             <div className="flex items-center justify-center w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-bold flex-shrink-0">
                               {row.guardName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                             </div>
@@ -1338,6 +1555,35 @@ export default function AttendancePage() {
                                   {shift === 'day-shift' ? '06:20' : '18:20'}
                                 </button>
                               </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Sign-Out Time & Overtime Display */}
+                        <div className="mb-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                              Sign-Out Time
+                            </Label>
+                            {row.signOutTime && (
+                              <span className="text-[11px] font-mono font-bold text-purple-600 dark:text-purple-400">
+                                {row.signOutTime}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <Input
+                              type="time"
+                              value={row.signOutTime}
+                              onChange={(e) => updateRow(realIndex, 'signOutTime', e.target.value)}
+                              disabled={!isSupervisor}
+                              className="h-9 text-xs font-mono flex-1"
+                            />
+                            {row.signInTime && row.signOutTime && (
+                              <div className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                                {calculateOvertime(row.signInTime, row.signOutTime)}m OT
+                              </div>
                             )}
                           </div>
                         </div>
@@ -1437,10 +1683,24 @@ export default function AttendancePage() {
                   <table className="w-full min-w-[900px] table-enhanced">
                     <thead>
                       <tr className="border-b">
+                        {isSupervisor && (
+                          <th className="p-2.5 text-center">
+                            <button
+                              type="button"
+                              onClick={toggleSelectAll}
+                              className={`w-5 h-5 rounded border flex items-center justify-center mx-auto ${selectedGuardIds.size === filteredRows.length && filteredRows.length > 0 ? 'bg-blue-600 border-blue-600' : 'border-slate-300 dark:border-slate-600'}`}
+                            >
+                              {selectedGuardIds.size === filteredRows.length && filteredRows.length > 0 && (
+                                <Check className="h-3 w-3 text-white" />
+                              )}
+                            </button>
+                          </th>
+                        )}
                         <th className="text-left p-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Guard</th>
                         <th className="text-left p-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Badge ID</th>
                         <th className="text-left p-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Duty Point</th>
-                        <th className="text-left p-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Sign-In Time</th>
+                        <th className="text-left p-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Sign-In</th>
+                        <th className="text-left p-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Sign-Out</th>
                         <th className="text-left p-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
                         <th className="text-left p-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Remarks</th>
                         {isSupervisor && <th className="text-center p-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Actions</th>}
@@ -1449,8 +1709,20 @@ export default function AttendancePage() {
                     <tbody>
                       {filteredRows.map((row) => {
                         const realIndex = attendanceRows.findIndex(r => r.guardId === row.guardId)
+                        const isSelected = selectedGuardIds.has(row.guardId)
                         return (
-                          <tr key={row.guardId} className="border-b hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                          <tr key={row.guardId} className={`border-b hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors ${isSelected ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}`}>
+                            {isSupervisor && (
+                              <td className="p-2.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleSelectGuard(row.guardId)}
+                                  className={`w-5 h-5 rounded border flex items-center justify-center mx-auto ${isSelected ? 'bg-blue-600 border-blue-600' : 'border-slate-300 dark:border-slate-600'}`}
+                                >
+                                  {isSelected && <Check className="h-3 w-3 text-white" />}
+                                </button>
+                              </td>
+                            )}
                             <td className="p-2.5">
                               <div className="flex items-center gap-2.5">
                                 <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold flex-shrink-0">
@@ -1486,6 +1758,20 @@ export default function AttendancePage() {
                                 disabled={!isSupervisor}
                                 className="w-32 h-8 text-xs font-mono"
                               />
+                            </td>
+                            <td className="p-2.5">
+                              <Input
+                                type="time"
+                                value={row.signOutTime}
+                                onChange={(e) => updateRow(realIndex, 'signOutTime', e.target.value)}
+                                disabled={!isSupervisor}
+                                className="w-32 h-8 text-xs font-mono"
+                              />
+                              {row.signInTime && row.signOutTime && (
+                                <div className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 mt-1">
+                                  {calculateOvertime(row.signInTime, row.signOutTime)}m OT
+                                </div>
+                              )}
                             </td>
                             <td className="p-2.5">
                               {isSupervisor ? (

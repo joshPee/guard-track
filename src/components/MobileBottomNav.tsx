@@ -12,7 +12,9 @@ import {
   Settings,
   MoreHorizontal,
   LogOut,
-  CalendarCheck
+  CalendarCheck,
+  CalendarDays,
+  Calendar as CalendarIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
@@ -33,6 +35,8 @@ const bottomNavItems: NavItem[] = [
 const moreItems: NavItem[] = [
   { name: 'Duty Points', href: '/duty-points', icon: MapPin },
   { name: 'Leave & Exeats', href: '/leave', icon: CalendarCheck },
+  { name: 'Heatmap', href: '/heatmap', icon: CalendarDays },
+  { name: 'Schedule', href: '/schedule', icon: CalendarIcon },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 

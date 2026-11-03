@@ -26,7 +26,7 @@ async function getDashboardStats() {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    const [totalGuards, allDutyPoints, records, recentRecords] = await Promise.all([
+    const [totalGuards, allDutyPoints, records, recentRecords, alertSettings] = await Promise.all([
       prisma.guard.count({
         where: { status: 'ACTIVE' },
       }),
@@ -56,6 +56,9 @@ async function getDashboardStats() {
           createdAt: 'desc',
         },
         take: 6,
+      }),
+      prisma.setting.findUnique({
+        where: { key: 'alert_settings' },
       }),
     ])
 
@@ -88,6 +91,44 @@ async function getDashboardStats() {
       }
     })
 
+    // Parse alert settings and generate alerts
+    let alerts: Array<{ type: 'warning' | 'error' | 'info'; message: string }> = []
+    const settings = alertSettings ? JSON.parse(alertSettings.value) : null
+
+    if (settings?.enableAlerts) {
+      const attendanceRate = totalGuards > 0 ? ((present + late) / totalGuards) * 100 : 0
+      const absentRate = totalGuards > 0 ? (absent / totalGuards) * 100 : 0
+      const lateRate = totalGuards > 0 ? (late / totalGuards) * 100 : 0
+
+      if (absentRate > settings.highAbsenteeismThreshold) {
+        alerts.push({
+          type: 'error',
+          message: `High absenteeism rate: ${absentRate.toFixed(0)}% exceeds threshold of ${settings.highAbsenteeismThreshold}%`,
+        })
+      }
+
+      if (lateRate > settings.highLateThreshold) {
+        alerts.push({
+          type: 'warning',
+          message: `High late arrival rate: ${lateRate.toFixed(0)}% exceeds threshold of ${settings.highLateThreshold}%`,
+        })
+      }
+
+      if (attendanceRate < settings.lowAttendanceThreshold) {
+        alerts.push({
+          type: 'warning',
+          message: `Low attendance rate: ${attendanceRate.toFixed(0)}% below threshold of ${settings.lowAttendanceThreshold}%`,
+        })
+      }
+
+      if (coveredDutyPoints < allDutyPoints.length * 0.8) {
+        alerts.push({
+          type: 'info',
+          message: `${allDutyPoints.length - coveredDutyPoints} duty points not covered today`,
+        })
+      }
+    }
+
     return {
       present,
       late,
@@ -98,6 +139,7 @@ async function getDashboardStats() {
       coveredDutyPoints,
       mappedDutyPoints,
       recentRecords,
+      alerts,
     }
   } catch (error) {
     console.error('Error fetching dashboard stats:', error)
@@ -111,6 +153,7 @@ async function getDashboardStats() {
       coveredDutyPoints: 0,
       mappedDutyPoints: [],
       recentRecords: [],
+      alerts: [],
     }
   }
 }
@@ -139,6 +182,8 @@ export default async function DashboardPage() {
     ? Math.round(((stats.present + stats.late) / stats.total) * 100)
     : 0
 
+  const hasAlerts = stats.alerts && stats.alerts.length > 0
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Page Header */}
@@ -156,6 +201,41 @@ export default async function DashboardPage() {
           { label: 'Absent', value: stats.absent, highlight: stats.absent > 0 },
         ]}
       />
+
+      {/* Alerts Banner */}
+      {hasAlerts && (
+        <div className="space-y-2">
+          {stats.alerts.map((alert, idx) => (
+            <div
+              key={idx}
+              className={`flex items-center gap-3 p-3.5 sm:p-4 rounded-xl border shadow-sm ${
+                alert.type === 'error'
+                  ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800'
+                  : alert.type === 'warning'
+                  ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
+                  : 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800'
+              }`}
+            >
+              {alert.type === 'error' ? (
+                <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0" />
+              ) : alert.type === 'warning' ? (
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+              ) : (
+                <AlertTriangle className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0" />
+              )}
+              <p className="text-sm font-medium text-slate-900 dark:text-white">{alert.message}</p>
+              {isSupervisor && (
+                <Link
+                  href="/settings"
+                  className="text-xs font-semibold text-slate-600 dark:text-slate-400 hover:underline ml-auto"
+                >
+                  Configure alerts
+                </Link>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Operational Shift Status Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 shadow-sm gap-3">

@@ -19,7 +19,10 @@ import {
   Loader2,
   Lock,
   Mail,
-  UserCheck
+  UserCheck,
+  Bell,
+  AlertTriangle,
+  TrendingUp
 } from 'lucide-react'
 import { toast } from '@/components/ui/toast'
 
@@ -51,6 +54,15 @@ export default function SettingsPage() {
   const [savingShiftId, setSavingShiftId] = useState<string | null>(null)
   const [shiftDrafts, setShiftDrafts] = useState<Record<string, string>>({})
 
+  // Alert settings
+  const [alertSettings, setAlertSettings] = useState({
+    highAbsenteeismThreshold: 20,
+    highLateThreshold: 15,
+    lowAttendanceThreshold: 70,
+    enableAlerts: true,
+  })
+  const [savingAlerts, setSavingAlerts] = useState(false)
+
   useEffect(() => {
     fetchInitialData()
   }, [])
@@ -71,6 +83,9 @@ export default function SettingsPage() {
         const settings = await settingsRes.json()
         if (settings.organization_name) {
           setOrgName(settings.organization_name)
+        }
+        if (settings.alert_settings) {
+          setAlertSettings(JSON.parse(settings.alert_settings))
         }
       }
 
@@ -126,6 +141,28 @@ export default function SettingsPage() {
       toast.error('Failed to save organization details')
     } finally {
       setSavingOrg(false)
+    }
+  }
+
+  const handleSaveAlerts = async () => {
+    setSavingAlerts(true)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: 'alert_settings',
+          value: JSON.stringify(alertSettings),
+        }),
+      })
+      if (res.ok) {
+        toast.success('Alert settings saved successfully')
+      }
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to save alert settings')
+    } finally {
+      setSavingAlerts(false)
     }
   }
 
@@ -368,6 +405,104 @@ export default function SettingsPage() {
                 </div>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Alert Settings */}
+        <Card className="animate-fade-in-up animation-delay-3 border-slate-200 dark:border-slate-800 shadow-sm">
+          <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800/80">
+            <div className="flex items-center gap-2.5">
+              <span className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                <Bell className="h-4 w-4" />
+              </span>
+              <div>
+                <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Attendance Alert Thresholds</CardTitle>
+                <CardDescription className="text-xs text-slate-500">Configure automatic alerts for attendance patterns and issues</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-slate-900 dark:text-white">Enable Alerts</span>
+                <span className="text-xs text-slate-500">Show notifications when thresholds are exceeded</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAlertSettings(prev => ({ ...prev, enableAlerts: !prev.enableAlerts }))}
+                disabled={!isSupervisor}
+                className={`relative w-12 h-6 rounded-full transition-colors ${alertSettings.enableAlerts ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-600'}`}
+              >
+                <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${alertSettings.enableAlerts ? 'translate-x-6' : ''}`} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">
+                  High Absenteeism %
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    value={alertSettings.highAbsenteeismThreshold}
+                    onChange={(e) => setAlertSettings(prev => ({ ...prev, highAbsenteeismThreshold: parseInt(e.target.value) || 0 }))}
+                    disabled={!isSupervisor || !alertSettings.enableAlerts}
+                    className="bg-white dark:bg-slate-900 text-sm font-mono"
+                  />
+                  <AlertTriangle className="h-4 w-4 text-rose-500" />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">Alert when absent &gt; X%</p>
+              </div>
+
+              <div>
+                <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">
+                  High Late Arrivals %
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    value={alertSettings.highLateThreshold}
+                    onChange={(e) => setAlertSettings(prev => ({ ...prev, highLateThreshold: parseInt(e.target.value) || 0 }))}
+                    disabled={!isSupervisor || !alertSettings.enableAlerts}
+                    className="bg-white dark:bg-slate-900 text-sm font-mono"
+                  />
+                  <Clock className="h-4 w-4 text-amber-500" />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">Alert when late &gt; X%</p>
+              </div>
+
+              <div>
+                <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">
+                  Low Attendance %
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    value={alertSettings.lowAttendanceThreshold}
+                    onChange={(e) => setAlertSettings(prev => ({ ...prev, lowAttendanceThreshold: parseInt(e.target.value) || 0 }))}
+                    disabled={!isSupervisor || !alertSettings.enableAlerts}
+                    className="bg-white dark:bg-slate-900 text-sm font-mono"
+                  />
+                  <TrendingUp className="h-4 w-4 text-emerald-500" />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">Alert when attendance &lt; X%</p>
+              </div>
+            </div>
+
+            {isSupervisor && (
+              <Button
+                onClick={handleSaveAlerts}
+                disabled={savingAlerts || !alertSettings.enableAlerts}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                {savingAlerts ? (
+                  <span className="flex items-center gap-1"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</span>
+                ) : (
+                  'Save Alert Settings'
+                )}
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>

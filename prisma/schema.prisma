@@ -29,6 +29,7 @@ model Guard {
   phone              String?
   status             GuardStatus        @default(ACTIVE)
   defaultDutyPointId String?
+  photoUrl           String?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   attendanceRecords  AttendanceRecord[]
