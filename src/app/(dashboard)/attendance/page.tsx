@@ -199,6 +199,14 @@ export default function AttendancePage() {
     return 'NS'
   }
 
+  // Get expected shift ID based on time (for database)
+  const getShiftIdForTime = (signInTime: string) => {
+    if (!signInTime) return shift
+    const [hours] = signInTime.split(':').map(Number)
+    // 06:00-17:59 = day-shift, 18:00-05:59 = night-shift
+    return hours >= 6 && hours < 18 ? 'day-shift' : 'night-shift'
+  }
+
   const markRowPresent = (index: number, presetTime?: string) => {
     const newRows = [...attendanceRows]
     newRows[index].status = 'PRESENT'
@@ -370,13 +378,6 @@ export default function AttendancePage() {
   const saveAllAttendance = async () => {
     setSaving(true)
     try {
-      // Determine shift ID based on sign-in time
-      const getShiftIdForTime = (signInTime: string) => {
-        if (!signInTime) return shift
-        const [hours] = signInTime.split(':').map(Number)
-        return hours >= 6 && hours < 18 ? 'day-shift' : 'night-shift'
-      }
-
       // Parallel batch save for speed
       const promises = attendanceRows.map(row =>
         fetch('/api/attendance', {
@@ -626,27 +627,18 @@ export default function AttendancePage() {
       else if (statusFilter === 'LEAVE') matchesStatus = row.status === 'LEAVE'
       else if (statusFilter === 'PENDING') matchesStatus = !row.signInTime && row.status !== 'OFF' && row.status !== 'EXCUSED' && row.status !== 'LEAVE'
 
-      // Filter by main shift selector (day-shift vs night-shift)
-      // This filters which guards should be on duty for the selected shift
+      // Filter by shift type chips (ALL/DS/NS) based on actual sign-in time
       const shiftType = getShiftType(row.signInTime)
-      let matchesMainShift = true
-      if (shift === 'day-shift') {
-        // Show DS guards OR pending guards (no sign-in time yet)
-        matchesMainShift = shiftType === 'DS' || !row.signInTime
-      } else if (shift === 'night-shift') {
-        // Show NS guards OR pending guards (no sign-in time yet)
-        matchesMainShift = shiftType === 'NS' || !row.signInTime
-      }
-
-      // Filter by shift type chips (ALL/DS/NS)
       let matchesShiftType = true
       if (shiftTypeFilter === 'DS') {
+        // Show DS guards (06:00-17:59) and pending guards
         matchesShiftType = shiftType === 'DS' || !row.signInTime
       } else if (shiftTypeFilter === 'NS') {
+        // Show NS guards (18:00-05:59) and pending guards
         matchesShiftType = shiftType === 'NS' || !row.signInTime
       }
 
-      return matchesSearch && matchesStatus && matchesMainShift && matchesShiftType
+      return matchesSearch && matchesStatus && matchesShiftType
     })
 
     // Apply sort
