@@ -10,7 +10,6 @@ const attendanceRecordSchema = z.object({
   dutyPointId: z.string(),
   shiftDate: z.string(),
   signInTime: z.string().optional(),
-  signOutTime: z.string().optional(),
   status: z.enum(['PRESENT', 'LATE', 'ABSENT', 'OFF', 'LEAVE', 'EXCUSED']).optional(),
   minutesLate: z.number().default(0),
   remarks: z.string().optional(),
@@ -142,7 +141,6 @@ export async function POST(req: Request) {
     if (existingRecord) {
       const oldValue = {
         signInTime: existingRecord.signInTime,
-        signOutTime: existingRecord.signOutTime,
         status: existingRecord.status,
         minutesLate: existingRecord.minutesLate,
         remarks: existingRecord.remarks,
@@ -152,7 +150,6 @@ export async function POST(req: Request) {
         where: { id: existingRecord.id },
         data: {
           signInTime: validatedData.signInTime ? new Date(validatedData.signInTime) : null,
-          signOutTime: validatedData.signOutTime ? new Date(validatedData.signOutTime) : null,
           status: finalStatus || validatedData.status,
           minutesLate: finalMinutesLate,
           remarks: validatedData.remarks,
@@ -178,7 +175,6 @@ export async function POST(req: Request) {
           ...validatedData,
           shiftDate: new Date(finalShiftDate),
           signInTime: validatedData.signInTime ? new Date(validatedData.signInTime) : null,
-          signOutTime: validatedData.signOutTime ? new Date(validatedData.signOutTime) : null,
           status: finalStatus || 'ABSENT',
           minutesLate: finalMinutesLate,
           recordedById: session.user.id,

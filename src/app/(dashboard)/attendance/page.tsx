@@ -37,7 +37,6 @@ interface AttendanceRow {
   badgeId: string
   dutyPointId: string
   signInTime: string
-  signOutTime: string
   status: string
   remarks: string
 }
@@ -73,6 +72,7 @@ export default function AttendancePage() {
   const [saving, setSaving] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'PRESENT' | 'LATE' | 'ABSENT' | 'OFF' | 'EXCUSED' | 'LEAVE'>('ALL')
+  const [shiftTypeFilter, setShiftTypeFilter] = useState<'ALL' | 'DS' | 'NS'>('ALL')
   const [rosterSearch, setRosterSearch] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
   const [sortMode, setSortMode] = useState<'alpha' | 'status' | 'pending'>('alpha')
@@ -157,7 +157,6 @@ export default function AttendancePage() {
             badgeId: guard.badgeId,
             dutyPointId: existing?.dutyPointId || guard.defaultDutyPoint?.id || dutyPoints[0]?.id || '',
             signInTime: existing?.signInTime ? new Date(existing.signInTime).toISOString().slice(11, 16) : '',
-            signOutTime: existing?.signOutTime ? new Date(existing.signOutTime).toISOString().slice(11, 16) : '',
             status: existing?.status || 'ABSENT',
             remarks: existing?.remarks || '',
           }
@@ -188,19 +187,14 @@ export default function AttendancePage() {
     setHasChanges(true)
   }
 
-  // Calculate overtime hours
-  const calculateOvertime = (signInTime: string, signOutTime: string) => {
-    if (!signInTime || !signOutTime) return 0
-
-    const shiftEnd = shift === 'day-shift' ? '18:00' : '06:00'
-    const [signOutH, signOutM] = signOutTime.split(':').map(Number)
-    const [shiftEndH, shiftEndM] = shiftEnd.split(':').map(Number)
-
-    const signOutMinutes = signOutH * 60 + signOutM
-    const shiftEndMinutes = shiftEndH * 60 + shiftEndM
-
-    const overtimeMinutes = signOutMinutes - shiftEndMinutes
-    return overtimeMinutes > 0 ? overtimeMinutes : 0
+  // Determine shift type based on sign-in time
+  const getShiftType = (signInTime: string): 'DS' | 'NS' | null => {
+    if (!signInTime) return null
+    const [hours] = signInTime.split(':').map(Number)
+    // Day shift: 06:00 - 17:59
+    // Night shift: 18:00 - 05:59
+    if (hours >= 6 && hours < 18) return 'DS'
+    return 'NS'
   }
 
   const markRowPresent = (index: number, presetTime?: string) => {
@@ -378,7 +372,6 @@ export default function AttendancePage() {
             dutyPointId: row.dutyPointId,
             shiftDate: date,
             signInTime: row.signInTime ? `${date}T${row.signInTime}` : null,
-            signOutTime: row.signOutTime ? `${date}T${row.signOutTime}` : null,
             status: row.status,
             minutesLate: 0,
             remarks: row.remarks,
@@ -615,7 +608,11 @@ export default function AttendancePage() {
       else if (statusFilter === 'LEAVE') matchesStatus = row.status === 'LEAVE'
       else if (statusFilter === 'PENDING') matchesStatus = !row.signInTime && row.status !== 'OFF' && row.status !== 'EXCUSED' && row.status !== 'LEAVE'
 
-      return matchesSearch && matchesStatus
+      let matchesShiftType = true
+      if (shiftTypeFilter === 'DS') matchesShiftType = getShiftType(row.signInTime) === 'DS'
+      else if (shiftTypeFilter === 'NS') matchesShiftType = getShiftType(row.signInTime) === 'NS'
+
+      return matchesSearch && matchesStatus && matchesShiftType
     })
 
     // Apply sort
@@ -1352,6 +1349,34 @@ export default function AttendancePage() {
             </div>
           </div>
 
+          {/* Shift Type Filter Chips (DS/NS) */}
+          <div className="px-4 py-2 bg-slate-50 dark:bg-slate-900/40 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-thin pb-0.5">
+              <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1 mr-1 flex-shrink-0 uppercase tracking-wider">
+                <Layers className="h-3 w-3" /> Shift Type:
+              </span>
+              {(
+                [
+                  { key: 'ALL', label: 'All Shifts', activeCls: 'bg-slate-600 text-white' },
+                  { key: 'DS', label: 'Day Shift (DS)', activeCls: 'bg-blue-600 text-white' },
+                  { key: 'NS', label: 'Night Shift (NS)', activeCls: 'bg-purple-600 text-white' },
+                ] as const
+              ).map(({ key, label, activeCls }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setShiftTypeFilter(key)}
+                  className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${shiftTypeFilter === key
+                      ? `${activeCls} shadow-sm`
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                    }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Bulk Actions Bar */}
           {selectedGuardIds.size > 0 && isSupervisor && (
             <div className="mx-4 sm:mx-6 my-3 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -1488,9 +1513,16 @@ export default function AttendancePage() {
                             </div>
                           </div>
 
-                          <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full flex-shrink-0 ${STATUS_COLORS[row.status] || ''}`}>
-                            {row.status}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {getShiftType(row.signInTime) && (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${getShiftType(row.signInTime) === 'DS' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'}`}>
+                                {getShiftType(row.signInTime)}
+                              </span>
+                            )}
+                            <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${STATUS_COLORS[row.status] || ''}`}>
+                              {row.status}
+                            </span>
+                          </div>
                         </div>
 
                         {/* Duty Point Selector */}
@@ -1555,35 +1587,6 @@ export default function AttendancePage() {
                                   {shift === 'day-shift' ? '06:20' : '18:20'}
                                 </button>
                               </>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Sign-Out Time & Overtime Display */}
-                        <div className="mb-3">
-                          <div className="flex items-center justify-between mb-1">
-                            <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                              Sign-Out Time
-                            </Label>
-                            {row.signOutTime && (
-                              <span className="text-[11px] font-mono font-bold text-purple-600 dark:text-purple-400">
-                                {row.signOutTime}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-1.5">
-                            <Input
-                              type="time"
-                              value={row.signOutTime}
-                              onChange={(e) => updateRow(realIndex, 'signOutTime', e.target.value)}
-                              disabled={!isSupervisor}
-                              className="h-9 text-xs font-mono flex-1"
-                            />
-                            {row.signInTime && row.signOutTime && (
-                              <div className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">
-                                {calculateOvertime(row.signInTime, row.signOutTime)}m OT
-                              </div>
                             )}
                           </div>
                         </div>
@@ -1700,7 +1703,6 @@ export default function AttendancePage() {
                         <th className="text-left p-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Badge ID</th>
                         <th className="text-left p-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Duty Point</th>
                         <th className="text-left p-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Sign-In</th>
-                        <th className="text-left p-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Sign-Out</th>
                         <th className="text-left p-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
                         <th className="text-left p-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Remarks</th>
                         {isSupervisor && <th className="text-center p-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Actions</th>}
@@ -1760,42 +1762,35 @@ export default function AttendancePage() {
                               />
                             </td>
                             <td className="p-2.5">
-                              <Input
-                                type="time"
-                                value={row.signOutTime}
-                                onChange={(e) => updateRow(realIndex, 'signOutTime', e.target.value)}
-                                disabled={!isSupervisor}
-                                className="w-32 h-8 text-xs font-mono"
-                              />
-                              {row.signInTime && row.signOutTime && (
-                                <div className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 mt-1">
-                                  {calculateOvertime(row.signInTime, row.signOutTime)}m OT
-                                </div>
-                              )}
-                            </td>
-                            <td className="p-2.5">
-                              {isSupervisor ? (
-                                <Select
-                                  value={row.status}
-                                  onValueChange={(val) => updateRow(realIndex, 'status', val)}
-                                >
-                                  <SelectTrigger className="w-28 h-8 text-xs font-semibold">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="PRESENT">Present</SelectItem>
-                                    <SelectItem value="LATE">Late</SelectItem>
-                                    <SelectItem value="ABSENT">Absent</SelectItem>
-                                    <SelectItem value="OFF">Off</SelectItem>
-                                    <SelectItem value="LEAVE">Leave</SelectItem>
-                                    <SelectItem value="EXCUSED">Excused</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[row.status] || ''}`}>
-                                  {row.status}
-                                </span>
-                              )}
+                              <div className="flex items-center gap-1.5">
+                                {getShiftType(row.signInTime) && (
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${getShiftType(row.signInTime) === 'DS' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'}`}>
+                                    {getShiftType(row.signInTime)}
+                                  </span>
+                                )}
+                                {isSupervisor ? (
+                                  <Select
+                                    value={row.status}
+                                    onValueChange={(val) => updateRow(realIndex, 'status', val)}
+                                  >
+                                    <SelectTrigger className="w-28 h-8 text-xs font-semibold">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="PRESENT">Present</SelectItem>
+                                      <SelectItem value="LATE">Late</SelectItem>
+                                      <SelectItem value="ABSENT">Absent</SelectItem>
+                                      <SelectItem value="OFF">Off</SelectItem>
+                                      <SelectItem value="LEAVE">Leave</SelectItem>
+                                      <SelectItem value="EXCUSED">Excused</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[row.status] || ''}`}>
+                                    {row.status}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="p-2.5">
                               <Input
