@@ -33,6 +33,15 @@ const STATUS_COLORS: Record<string, string> = {
   EXCUSED: 'bg-purple-500',
 }
 
+const STATUS_TEXT_COLORS: Record<string, string> = {
+  PRESENT: 'text-emerald-400',
+  LATE: 'text-amber-400',
+  ABSENT: 'text-rose-400',
+  OFF: 'text-slate-400',
+  LEAVE: 'text-blue-400',
+  EXCUSED: 'text-purple-400',
+}
+
 const STATUS_LABELS: Record<string, string> = {
   PRESENT: 'Present',
   LATE: 'Late',
@@ -275,21 +284,26 @@ export default function AttendanceHeatmapPage() {
 
                       {/* Tooltip */}
                       {records.length > 0 && (
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-slate-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
-                          <div className="font-semibold mb-1">{format(day, 'MMM d, yyyy')}</div>
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 max-h-48 overflow-y-auto px-3 py-2 bg-slate-900/95 backdrop-blur-sm text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                          <div className="font-semibold mb-2 border-b border-slate-700 pb-1">{format(day, 'MMM d, yyyy')}</div>
                           {selectedGuardId === 'all' ? (
-                            <div>
-                              {records.slice(0, 3).map(r => (
-                                <div key={r.guardId} className="text-slate-300">
-                                  {r.guardName}: {r.status}
+                            <div className="space-y-1">
+                              {records.map(r => (
+                                <div key={r.guardId} className="flex items-center justify-between">
+                                  <span className="text-slate-300 truncate pr-2">{r.guardName}</span>
+                                  <span className={`font-medium ${STATUS_TEXT_COLORS[r.status] || 'text-slate-400'}`}>
+                                    {STATUS_LABELS[r.status] || r.status}
+                                  </span>
                                 </div>
                               ))}
-                              {records.length > 3 && (
-                                <div className="text-slate-400">+{records.length - 3} more</div>
-                              )}
                             </div>
                           ) : (
-                            <div>Status: {records[0].status}</div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-300">Status:</span>
+                              <span className={`font-medium ${STATUS_TEXT_COLORS[records[0].status] || 'text-slate-400'}`}>
+                                {STATUS_LABELS[records[0].status] || records[0].status}
+                              </span>
+                            </div>
                           )}
                         </div>
                       )}
