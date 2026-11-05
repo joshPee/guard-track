@@ -510,7 +510,7 @@ export function exportSingleGuardWeeklyPDF(
   const rateColor = rate === null ? [15, 45, 89] : rate >= 90 ? [21, 128, 61] : rate >= 70 ? [161, 98, 7] : [185, 28, 28]
   doc.setFontSize(24)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...rateColor)
+  doc.setTextColor(rateColor[0], rateColor[1], rateColor[2])
   doc.text(rate === null ? 'n/a' : `${rate}%`, rateBoxX + 8, rateBoxY + 12)
 
   doc.setFontSize(8)
