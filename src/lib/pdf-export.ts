@@ -302,11 +302,11 @@ function addLegendFooter(doc: jsPDF, pageWidth: number) {
     let legendX = 14
     legendLabels.forEach(item => {
       const badgeW = doc.getTextWidth(item.label) + 8
-      doc.setFillColor(...item.bg)
+      doc.setFillColor(item.bg[0], item.bg[1], item.bg[2])
       doc.roundedRect(legendX, legendY + 3, badgeW, 6, 3, 3, 'F')
       doc.setFontSize(7)
       doc.setFont('helvetica', 'bold')
-      doc.setTextColor(...item.color)
+      doc.setTextColor(item.color[0], item.color[1], item.color[2])
       doc.text(item.label, legendX + 4, legendY + 7)
       legendX += badgeW + 6
     })
