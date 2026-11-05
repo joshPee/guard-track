@@ -266,22 +266,23 @@ export default function DailyAssignmentsPage() {
                       <div className="text-xs text-slate-500">{guard.badgeId}</div>
                     </div>
                     {isSupervisor ? (
-                      <Select
-                        value={assignedDutyPointId}
-                        onValueChange={(value) => updateAssignment(guard.id, value)}
-                        className="w-64"
-                      >
-                        <SelectTrigger className="h-9 text-sm">
-                          <SelectValue placeholder="Select duty point" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {dutyPoints.map(dp => (
-                            <SelectItem key={dp.id} value={dp.id}>
-                              {dp.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="w-64">
+                        <Select
+                          value={assignedDutyPointId}
+                          onValueChange={(value) => updateAssignment(guard.id, value)}
+                        >
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue placeholder="Select duty point" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {dutyPoints.map(dp => (
+                              <SelectItem key={dp.id} value={dp.id}>
+                                {dp.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     ) : (
                       <div className="text-sm text-slate-600 dark:text-slate-400">
                         {dutyPoints.find(dp => dp.id === assignedDutyPointId)?.name || 'Unassigned'}
