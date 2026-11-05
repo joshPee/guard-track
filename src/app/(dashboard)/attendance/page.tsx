@@ -147,15 +147,28 @@ export default function AttendancePage() {
     setLoading(true)
     try {
       const res = await fetch(`/api/attendance?date=${date}`)
-      if (res.ok) {
+      const assignmentsRes = await fetch(`/api/daily-assignments?date=${date}&shiftId=${shift}`)
+      
+      if (res.ok && assignmentsRes.ok) {
         const records = await res.json()
+        const assignments = await assignmentsRes.json()
+        
+        // Create a map of guardId to dutyPointId from daily assignments
+        const assignmentMap: Record<string, string> = {}
+        assignments.forEach((a: any) => {
+          assignmentMap[a.guardId] = a.dutyPointId
+        })
+
         const rows: AttendanceRow[] = guards.map((guard) => {
           const existing = records.find((r: any) => r.guardId === guard.id)
+          // Priority: daily assignment > existing record > default > first duty point
+          const dutyPointId = assignmentMap[guard.id] || existing?.dutyPointId || guard.defaultDutyPoint?.id || dutyPoints[0]?.id || ''
+          
           return {
             guardId: guard.id,
             guardName: guard.fullName,
             badgeId: guard.badgeId,
-            dutyPointId: existing?.dutyPointId || guard.defaultDutyPoint?.id || dutyPoints[0]?.id || '',
+            dutyPointId,
             signInTime: existing?.signInTime ? new Date(existing.signInTime).toISOString().slice(11, 16) : '',
             status: existing?.status || 'ABSENT',
             remarks: existing?.remarks || '',
@@ -189,14 +202,10 @@ export default function AttendancePage() {
     setHasChanges(true)
   }
 
-  // Determine shift type based on sign-in time
+  // Determine shift type based on current shift selector (not sign-in time)
   const getShiftType = (signInTime: string): 'DS' | 'NS' | null => {
-    if (!signInTime) return null
-    const [hours] = signInTime.split(':').map(Number)
-    // Day shift: 06:00 - 17:59
-    // Night shift: 18:00 - 05:59
-    if (hours >= 6 && hours < 18) return 'DS'
-    return 'NS'
+    // DS for day-shift selector, NS for night-shift selector
+    return shift === 'day-shift' ? 'DS' : 'NS'
   }
 
   // Get expected shift ID based on time (for database)
@@ -627,15 +636,15 @@ export default function AttendancePage() {
       else if (statusFilter === 'LEAVE') matchesStatus = row.status === 'LEAVE'
       else if (statusFilter === 'PENDING') matchesStatus = !row.signInTime && row.status !== 'OFF' && row.status !== 'EXCUSED' && row.status !== 'LEAVE'
 
-      // Filter by shift type chips (ALL/DS/NS) based on actual sign-in time
+      // Filter by shift type chips (ALL/DS/NS) based on current shift selector
       const shiftType = getShiftType(row.signInTime)
       let matchesShiftType = true
       if (shiftTypeFilter === 'DS') {
-        // Show DS guards (06:00-17:59) and pending guards
-        matchesShiftType = shiftType === 'DS' || !row.signInTime
+        // Show only when day-shift is selected
+        matchesShiftType = shift === 'day-shift'
       } else if (shiftTypeFilter === 'NS') {
-        // Show NS guards (18:00-05:59) and pending guards
-        matchesShiftType = shiftType === 'NS' || !row.signInTime
+        // Show only when night-shift is selected
+        matchesShiftType = shift === 'night-shift'
       }
 
       return matchesSearch && matchesStatus && matchesShiftType

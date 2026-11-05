@@ -23,17 +23,18 @@ model User {
 }
 
 model Guard {
-  id                 String             @id @default(cuid())
+  id                 String                   @id @default(cuid())
   fullName           String
-  badgeId            String             @unique
+  badgeId            String                   @unique
   phone              String?
-  status             GuardStatus        @default(ACTIVE)
+  status             GuardStatus              @default(ACTIVE)
   defaultDutyPointId String?
   photoUrl           String?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
   attendanceRecords  AttendanceRecord[]
-  defaultDutyPoint   DutyPoint?         @relation(fields: [defaultDutyPointId], references: [id])
+  defaultDutyPoint   DutyPoint?               @relation(fields: [defaultDutyPointId], references: [id])
+  dailyAssignments   DailyDutyAssignment[]
 
   @@map("guards")
 }
@@ -49,28 +50,30 @@ model Zone {
 }
 
 model DutyPoint {
-  id                String             @id @default(cuid())
-  name              String
-  zoneId            String
-  isActive          Boolean            @default(true)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  attendanceRecords AttendanceRecord[]
-  zone              Zone               @relation(fields: [zoneId], references: [id])
-  guards            Guard[]
+  id                 String                 @id @default(cuid())
+  name               String
+  zoneId             String
+  isActive           Boolean                @default(true)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  attendanceRecords  AttendanceRecord[]
+  zone               Zone                   @relation(fields: [zoneId], references: [id])
+  guards             Guard[]
+  dailyAssignments   DailyDutyAssignment[]
 
   @@map("duty_points")
 }
 
 model Shift {
-  id                String             @id @default(cuid())
+  id                String                 @id @default(cuid())
   name              String
   startTime         String
   endTime           String
-  graceMinutes      Int                @default(10)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  attendanceRecords AttendanceRecord[]
+  graceMinutes      Int                    @default(10)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  attendanceRecords  AttendanceRecord[]
+  dailyAssignments   DailyDutyAssignment[]
 
   @@map("shifts")
 }
@@ -119,6 +122,23 @@ model Setting {
   updatedAt DateTime @updatedAt
 
   @@map("settings")
+}
+
+model DailyDutyAssignment {
+  id          String   @id @default(cuid())
+  guardId     String
+  dutyPointId String
+  shiftId     String
+  date        DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  guard     Guard     @relation(fields: [guardId], references: [id])
+  dutyPoint DutyPoint @relation(fields: [dutyPointId], references: [id])
+  shift     Shift     @relation(fields: [shiftId], references: [id])
+
+  @@unique([guardId, shiftId, date])
+  @@map("daily_duty_assignments")
 }
 
 enum UserRole {
