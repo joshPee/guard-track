@@ -274,6 +274,73 @@ function addPDFFooters(doc: jsPDF, pageWidth: number) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// LEGEND FOOTER (for weekly reports)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function addLegendFooter(doc: jsPDF, pageWidth: number) {
+  const pageCount = doc.getNumberOfPages()
+  const pageHeight = doc.internal.pageSize.getHeight()
+
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i)
+
+    // Legend section
+    const legendY = pageHeight - 18
+    doc.setDrawColor(226, 232, 240)
+    doc.setLineWidth(0.3)
+    doc.line(14, legendY, pageWidth - 14, legendY)
+
+    const legendLabels = [
+      { label: 'Present', color: [21, 128, 61], bg: [227, 244, 232] },
+      { label: 'Late', color: [161, 98, 7], bg: [253, 240, 204] },
+      { label: 'Absent', color: [185, 28, 28], bg: [253, 228, 228] },
+      { label: 'Pending', color: [71, 85, 105], bg: [232, 237, 243] },
+      { label: 'Upcoming', color: [71, 85, 105], bg: [232, 237, 243] },
+      { label: 'Excused', color: [29, 78, 216], bg: [226, 235, 253] },
+    ]
+
+    let legendX = 14
+    legendLabels.forEach(item => {
+      const badgeW = doc.getTextWidth(item.label) + 8
+      doc.setFillColor(...item.bg)
+      doc.roundedRect(legendX, legendY + 3, badgeW, 6, 3, 3, 'F')
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...item.color)
+      doc.text(item.label, legendX + 4, legendY + 7)
+      legendX += badgeW + 6
+    })
+
+    // Rule note
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(100, 116, 139)
+    doc.text('Attendance rate counts only completed shifts the guard was rostered for. Pending, upcoming, off, leave, excused and unrostered days are left out.', 14, legendY + 14)
+
+    // Footer
+    doc.setDrawColor(226, 232, 240)
+    doc.setLineWidth(0.3)
+    doc.line(14, pageHeight - 11, pageWidth - 14, pageHeight - 11)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.setTextColor(148, 163, 184)
+    doc.text(
+      'Pentecost Convention Centre, PCC Security Unit, Gomoa Fetteh, Central Region, Ghana',
+      14,
+      pageHeight - 6.5
+    )
+
+    doc.text(
+      `Generated ${new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}`,
+      pageWidth - 14,
+      pageHeight - 6.5,
+      { align: 'right' }
+    )
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 1. DAILY REPORT (Single Guard or All Guards)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -392,42 +459,102 @@ export function exportSingleGuardWeeklyPDF(
   const totals = guardItem.totals || { present: 0, late: 0, absent: 0, off: 0, leave: 0, excused: 0, minutesLate: 0 }
 
   const scheduled = totals.present + totals.late + totals.absent
-  const rate = scheduled > 0 ? Math.round(((totals.present + totals.late) / scheduled) * 100) : 100
+  const rate = scheduled > 0 ? Math.round(((totals.present + totals.late) / scheduled) * 100) : null
 
   const startY = renderPCCHeader(doc, {
-    title: `Individual Guard Weekly Attendance Report`,
-    subtitle: `Guard: ${guard.fullName} (${guard.badgeId})  ·  Week Starting: ${weekStart}`,
+    title: 'Individual Guard Weekly Attendance Report',
+    subtitle: `PCC Security Unit`,
     refCode: `PCC-WKL-${guard.badgeId}`,
   })
 
-  // Guard Dossier Profile Banner
-  doc.setDrawColor(203, 213, 225)
-  doc.setFillColor(248, 250, 252)
-  doc.roundedRect(14, startY, pageWidth - 28, 30, 2, 2, 'FD')
+  // Guard Info Section (matching HTML template)
+  let y = startY + 8
 
-  doc.setFontSize(10)
+  // Guard name
+  doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(15, 23, 42)
-  doc.text(`Guard: ${guard.fullName}`, 18, startY + 6.5)
+  doc.setTextColor(15, 45, 89)
+  doc.text(guard.fullName, 14, y)
+
+  // Week range
+  y += 6
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(30, 41, 59)
+  const weekEnd = new Date(weekStart + 'T12:00:00')
+  weekEnd.setDate(weekEnd.getDate() + 6)
+  const weekRangeStr = `Week of ${new Date(weekStart + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric' })} to ${weekEnd.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`
+  doc.text(weekRangeStr, 14, y)
+
+  // Facts (phone, badge, default post)
+  y += 6
+  doc.setFontSize(8)
+  doc.setTextColor(100, 116, 139)
+  const facts = []
+  if (guard.phone) facts.push(`Phone ${guard.phone}`)
+  if (guard.defaultDutyPoint?.name) facts.push(`Default post ${guard.defaultDutyPoint.name}`)
+  facts.push(`Badge ${guard.badgeId}`)
+  doc.text(facts.join('  ·  '), 14, y)
+
+  // Attendance Rate Box (right side)
+  const rateBoxX = pageWidth - 14 - 50
+  const rateBoxY = startY + 8
+  const rateBoxW = 50
+  const rateBoxH = 28
+
+  doc.setFillColor(245, 248, 252)
+  doc.setDrawColor(217, 222, 225)
+  doc.roundedRect(rateBoxX, rateBoxY, rateBoxW, rateBoxH, 2.5, 2.5, 'FD')
+
+  // Rate percentage with color coding
+  const rateColor = rate === null ? [15, 45, 89] : rate >= 90 ? [21, 128, 61] : rate >= 70 ? [161, 98, 7] : [185, 28, 28]
+  doc.setFontSize(24)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...rateColor)
+  doc.text(rate === null ? 'n/a' : `${rate}%`, rateBoxX + 8, rateBoxY + 12)
 
   doc.setFontSize(8)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(71, 85, 105)
-  doc.text(`Badge ID: ${guard.badgeId}`, 18, startY + 12.5)
-  doc.text(`Phone: ${guard.phone || 'Not recorded'}`, 18, startY + 18.5)
-  doc.text(`Default Post: ${guard.defaultDutyPoint?.name || 'Unassigned Post'}`, 18, startY + 24.5)
+  doc.setTextColor(100, 116, 139)
+  const rateSubtext = scheduled
+    ? `Attendance, ${totals.present + totals.late} of ${scheduled} counted ${scheduled === 1 ? 'day' : 'days'}`
+    : 'No completed shifts yet'
+  doc.text(rateSubtext, rateBoxX + 8, rateBoxY + 22)
 
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(15, 45, 89)
-  doc.text(`Weekly Attendance Rate: ${rate}%`, 110, startY + 6.5)
+  // Statistics Strip (5 boxes)
+  y += 12
+  const stripBoxW = (pageWidth - 28 - 12) / 5
+  const stripBoxH = 20
 
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(71, 85, 105)
-  doc.text(`Week Starting: ${weekStart}`, 110, startY + 12.5)
-  doc.text(`Present: ${totals.present}  |  Late: ${totals.late}  |  Absent: ${totals.absent}`, 110, startY + 18.5)
-  doc.text(`Off Days: ${totals.off}  |  Leave/Exeat: ${totals.leave}  |  Excused: ${totals.excused}`, 110, startY + 24.5)
+  doc.setDrawColor(217, 222, 225)
+  doc.setFillColor(255, 255, 255)
+
+  const stats = [
+    { label: 'Days counted', value: scheduled.toString() },
+    { label: 'Present', value: totals.present.toString() },
+    { label: `Late (${totals.minutesLate} min)`, value: totals.late.toString() },
+    { label: 'Absent', value: totals.absent.toString() },
+    { label: 'Off, leave or excused', value: (totals.off + totals.leave + totals.excused).toString() },
+  ]
+
+  stats.forEach((stat, i) => {
+    const x = 14 + i * (stripBoxW + 3)
+    doc.roundedRect(x, y, stripBoxW, stripBoxH, 2, 2, 'FD')
+
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(15, 45, 89)
+    doc.text(stat.value, x + stripBoxW / 2, y + 10, { align: 'center' })
+
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(100, 116, 139)
+    doc.text(stat.label, x + stripBoxW / 2, y + 16, { align: 'center' })
+  })
 
   // Day-by-Day Detailed Rows Table
+  y += 24
+
   const tableData = days.map(d => {
     const dateObj = new Date(d + 'T12:00:00')
     const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' })
@@ -436,18 +563,18 @@ export function exportSingleGuardWeeklyPDF(
 
     return [
       `${dayName}\n${formattedDate}`,
-      dayData?.shiftName || 'Standard Shift',
-      dayData?.dutyPoint || guard.defaultDutyPoint?.name || 'Assigned Post',
+      dayData?.shiftName || '—',
+      dayData?.dutyPoint || guard.defaultDutyPoint?.name || '—',
       dayData?.signInTime ? new Date(dayData.signInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—',
-      dayData?.status || 'ABSENT',
-      dayData?.minutesLate && dayData.minutesLate > 0 ? `+${dayData.minutesLate}m` : '0',
+      dayData?.status || '—',
+      dayData?.minutesLate && dayData.minutesLate > 0 ? dayData.minutesLate.toString() : '—',
       dayData?.remarks || '—'
     ]
   })
 
   autoTable(doc, {
-    startY: startY + 34,
-    head: [['Day & Date', 'Shift', 'Duty Post', 'Sign-In', 'Status', 'Late Min', 'Remarks / Exeat Ref']],
+    startY: y,
+    head: [['Day and date', 'Shift', 'Duty post', 'Sign-in', 'Status', 'Late (min)', 'Remarks / exeat ref']],
     body: tableData,
     theme: 'grid',
     headStyles: {
@@ -457,27 +584,50 @@ export function exportSingleGuardWeeklyPDF(
       fontSize: 8,
     },
     alternateRowStyles: {
-      fillColor: [248, 250, 252],
+      fillColor: [245, 248, 252],
     },
     styles: {
-      fontSize: 7.5,
-      cellPadding: 2.8,
+      fontSize: 8,
+      cellPadding: 3,
       textColor: [30, 41, 59],
     },
     columnStyles: {
-      0: { cellWidth: 32 },
-      1: { cellWidth: 24 },
+      0: { cellWidth: 38 },
+      1: { cellWidth: 22 },
       2: { cellWidth: 38 },
-      3: { cellWidth: 18 },
-      4: { cellWidth: 20 },
-      5: { cellWidth: 16 },
+      3: { cellWidth: 18, halign: 'center' },
+      4: { cellWidth: 22 },
+      5: { cellWidth: 18, halign: 'center' },
       6: { cellWidth: 'auto' },
     }
   })
 
+  // Supervisor Notes Section
   const finalY = (doc as any).lastAutoTable?.finalY || 160
-  renderSupervisorStamp(doc, finalY + 8, pageWidth)
-  addPDFFooters(doc, pageWidth)
+  y = finalY + 8
+
+  doc.setDrawColor(217, 222, 225)
+  doc.setFillColor(255, 255, 255)
+  doc.roundedRect(14, y, pageWidth - 28, 40, 2, 2, 'FD')
+
+  doc.setFontSize(8.5)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(15, 45, 89)
+  doc.text('Supervisor notes', 18, y + 6)
+
+  // Ruled lines for notes
+  doc.setDrawColor(217, 222, 225)
+  doc.setLineWidth(0.3)
+  for (let i = 0; i < 3; i++) {
+    doc.line(18, y + 12 + i * 10, pageWidth - 18, y + 12 + i * 10)
+  }
+
+  // Supervisor Verification Section
+  y += 46
+  renderSupervisorStamp(doc, y, pageWidth)
+
+  // Footer with legend
+  addLegendFooter(doc, pageWidth)
 
   const cleanName = guard.fullName.toLowerCase().replace(/[^a-z0-9]/g, '-')
   doc.save(`pcc-weekly-${cleanName}-${guard.badgeId.toLowerCase()}-${weekStart}.pdf`)
