@@ -4,9 +4,7 @@ import Link from 'next/link'
 import {
   Users,
   Shield,
-  LayoutDashboard,
   Printer,
-  ChevronRight,
   Sparkles,
   Eye,
 } from 'lucide-react'
@@ -35,31 +33,25 @@ export function PortalNavbar({
         <div className="flex items-center justify-between min-h-16 py-2.5 sm:py-3 gap-3 flex-wrap sm:flex-nowrap">
           {/* Brand Logo & Title */}
           <div className="flex items-center gap-3 min-w-0">
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-3 group focus:outline-hidden"
-              title="Go to PCC GuardTrack Dashboard"
-            >
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-white p-1.5 shadow-sm border border-slate-200/80 group-hover:border-blue-400 group-hover:shadow-md transition-all duration-200 shrink-0">
-                <img src="/pcc.png" alt="PCC Logo" className="w-full h-full object-contain" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">
-                    PCC Security Unit
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-white p-1.5 shadow-sm border border-slate-200/80 shrink-0">
+              <img src="/pcc.png" alt="PCC Logo" className="w-full h-full object-contain" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">
+                  PCC Security Unit
+                </span>
+                {!showPageSwitcher && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60 shrink-0">
+                    <Eye className="w-2.5 h-2.5" />
+                    View Only
                   </span>
-                  {!showPageSwitcher && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60 shrink-0">
-                      <Eye className="w-2.5 h-2.5" />
-                      View Only
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">
-                  {subtitle || 'Pentecost Convention Centre · Gomoa Fetteh'}
-                </p>
+                )}
               </div>
-            </Link>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                {subtitle || 'Pentecost Convention Centre · Gomoa Fetteh'}
+              </p>
+            </div>
           </div>
 
           {/* Desktop Navigation Switcher Tabs (Only rendered when showPageSwitcher is true) */}
@@ -108,19 +100,6 @@ export function PortalNavbar({
                 <span className="hidden sm:inline">Print Sheet</span>
               </Button>
             )}
-
-            <Button
-              asChild
-              variant="default"
-              size="sm"
-              className="h-9 text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white dark:bg-blue-600 dark:hover:bg-blue-700 gap-1.5 shadow-xs"
-            >
-              <Link href="/dashboard">
-                <LayoutDashboard className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Dashboard</span>
-                <ChevronRight className="w-3 h-3 text-slate-400 dark:text-blue-200" />
-              </Link>
-            </Button>
           </div>
         </div>
 

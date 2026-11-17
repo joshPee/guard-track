@@ -9,16 +9,34 @@ import { MobileBottomNav } from '@/components/MobileBottomNav'
 import { QuickActionFAB } from '@/components/QuickActionFAB'
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const router = useRouter()
 
   useEffect(() => {
-    if (!session) {
+    // Only redirect when NextAuth has confirmed the user is unauthenticated
+    if (status === 'unauthenticated') {
       router.push('/login')
     }
-  }, [session, router])
+  }, [status, router])
 
-  if (!session) {
+  // While NextAuth is verifying session during page refresh, render a clean spinner
+  if (status === 'loading') {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-white p-2 shadow-sm border border-slate-200/80 flex items-center justify-center">
+            <img src="/pcc.png" alt="PCC Logo" className="w-full h-full object-contain" />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs font-semibold text-slate-500">Authenticating...</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (status === 'unauthenticated' || !session) {
     return null
   }
 
