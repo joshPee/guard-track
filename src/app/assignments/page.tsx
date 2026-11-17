@@ -25,8 +25,6 @@ import {
   ChevronRight,
   Sun,
   Moon,
-  LayoutGrid,
-  List,
   X,
   Building2,
   RefreshCw,
@@ -69,8 +67,6 @@ export default function AssignmentsPortalPage() {
   const [selectedShift, setSelectedShift] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedDutyPointFilter, setSelectedDutyPointFilter] = useState('ALL')
-  const [shiftTypeFilter, setShiftTypeFilter] = useState<'ALL' | 'DAY' | 'NIGHT'>('ALL')
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -86,7 +82,6 @@ export default function AssignmentsPortalPage() {
           if (isMounted) {
             setShifts(data)
             if (data.length > 0) {
-              // Default to day shift if available, or first shift
               const day = data.find((s) => s.name.toLowerCase().includes('day'))
               setSelectedShift(day ? day.id : data[0].id)
             }
@@ -143,7 +138,7 @@ export default function AssignmentsPortalPage() {
     setSelectedDate(d.toISOString().split('T')[0])
   }
 
-  // Unique duty points in current assignments
+  // Unique duty points in current assignments with guard counts
   const dutyPointsList = useMemo(() => {
     const map = new Map<string, number>()
     dailyAssignments.forEach((a) => {
@@ -157,7 +152,6 @@ export default function AssignmentsPortalPage() {
   const filteredAssignments = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     return dailyAssignments.filter((assignment) => {
-      // Search match
       const matchesSearch =
         q === '' ||
         assignment.guard.fullName.toLowerCase().includes(q) ||
@@ -165,19 +159,13 @@ export default function AssignmentsPortalPage() {
         assignment.dutyPoint.name.toLowerCase().includes(q) ||
         (assignment.guard.phone && assignment.guard.phone.includes(q))
 
-      // Duty point filter
       const matchesDutyPoint =
         selectedDutyPointFilter === 'ALL' ||
         assignment.dutyPoint.name === selectedDutyPointFilter
 
-      // Shift type filter
-      const matchesShiftType =
-        shiftTypeFilter === 'ALL' ||
-        assignment.guard.shiftType === shiftTypeFilter
-
-      return matchesSearch && matchesDutyPoint && matchesShiftType
+      return matchesSearch && matchesDutyPoint
     })
-  }, [dailyAssignments, searchQuery, selectedDutyPointFilter, shiftTypeFilter])
+  }, [dailyAssignments, searchQuery, selectedDutyPointFilter])
 
   // Summary statistics
   const stats = useMemo(() => {
@@ -224,7 +212,7 @@ export default function AssignmentsPortalPage() {
   const selectedShiftObj = shifts.find((s) => s.id === selectedShift)
   const isDayShift = selectedShiftObj?.name.toLowerCase().includes('day') ?? true
 
-  // Get guard initials for avatar fallback
+  // Get initials for fallback avatar
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -237,10 +225,12 @@ export default function AssignmentsPortalPage() {
 
   return (
     <div className="min-h-screen bg-slate-50/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
-      {/* Top Navigation Bar */}
+      {/* View-Only Top Navbar (No page switcher bar) */}
       <div className="print:hidden">
         <PortalNavbar
           currentPage="assignments"
+          showPageSwitcher={false}
+          subtitle="Daily Duty Assignments · Executive View"
           onPrint={handlePrint}
           extraActions={
             <Button
@@ -252,13 +242,13 @@ export default function AssignmentsPortalPage() {
               title="Refresh assignments"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden md:inline ml-1.5">Refresh</span>
+              <span className="hidden sm:inline ml-1.5">Refresh</span>
             </Button>
           }
         />
       </div>
 
-      {/* Printable Official Header (Only visible when printing) */}
+      {/* Printable Official Header (Only in print output) */}
       <div className="hidden print:block p-6 border-b border-slate-300 text-black">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -280,16 +270,16 @@ export default function AssignmentsPortalPage() {
       </div>
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 print:p-4 print:max-w-none">
-        {/* Banner Section */}
+        {/* Executive Header Banner */}
         <div className="print:hidden flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-900 text-white shadow-md">
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/15 text-blue-100 border border-white/20">
               <Shield className="w-3.5 h-3.5 text-blue-200" />
               <span>Campus Security Operations</span>
             </div>
-            <h2 className="text-2xl font-bold tracking-tight">Daily Duty Assignments Portal</h2>
+            <h2 className="text-2xl font-bold tracking-tight">Daily Duty Assignments</h2>
             <p className="text-xs text-blue-200/90 max-w-xl">
-              Real-time duty point assignments for security personnel at Pentecost Convention Centre.
+              Real-time duty point assignments for security personnel deployed across Pentecost Convention Centre.
             </p>
           </div>
 
@@ -379,8 +369,8 @@ export default function AssignmentsPortalPage() {
                 </div>
               </div>
 
-              {/* Shift Selector */}
-              <div className="lg:col-span-3 space-y-1.5">
+              {/* Shift Selector Dropdown */}
+              <div className="lg:col-span-4 space-y-1.5">
                 <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                   {isDayShift ? (
                     <Sun className="w-3.5 h-3.5 text-amber-500" />
@@ -411,29 +401,8 @@ export default function AssignmentsPortalPage() {
                 </Select>
               </div>
 
-              {/* Duty Point Filter */}
-              <div className="lg:col-span-3 space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                  Duty Point Filter
-                </Label>
-                <Select value={selectedDutyPointFilter} onValueChange={setSelectedDutyPointFilter}>
-                  <SelectTrigger className="h-9 text-xs sm:text-sm bg-slate-50/70 dark:bg-slate-800/60 font-medium">
-                    <SelectValue placeholder="All Duty Points" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All Duty Points ({dutyPointsList.length})</SelectItem>
-                    {dutyPointsList.map(([dpName, count]) => (
-                      <SelectItem key={dpName} value={dpName} className="text-xs">
-                        {dpName} ({count})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
               {/* Search Box */}
-              <div className="lg:col-span-2 space-y-1.5">
+              <div className="lg:col-span-4 space-y-1.5">
                 <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
                     <Search className="w-3.5 h-3.5 text-slate-500" />
@@ -450,7 +419,7 @@ export default function AssignmentsPortalPage() {
                 </Label>
                 <div className="relative">
                   <Input
-                    placeholder="Name, badge..."
+                    placeholder="Search guard name, badge, duty post..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="h-9 text-xs sm:text-sm bg-slate-50/70 dark:bg-slate-800/60 pr-8"
@@ -467,83 +436,40 @@ export default function AssignmentsPortalPage() {
               </div>
             </div>
 
-            {/* Sub-toolbar: Active deployment summary pills & View Mode switcher */}
+            {/* Location Filter Bar */}
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-              {/* Duty Points Deployment Pills */}
-              <div className="flex flex-wrap items-center gap-1.5 max-w-3xl">
+              <div className="flex flex-wrap items-center gap-1.5 max-w-4xl">
                 <span className="text-slate-500 font-medium mr-1 flex items-center gap-1">
                   <Building2 className="w-3 h-3 text-slate-400" />
-                  Locations:
+                  Filter Post:
                 </span>
                 <button
                   onClick={() => setSelectedDutyPointFilter('ALL')}
-                  className={`px-2 py-0.5 rounded-full text-[11px] font-semibold transition-all ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
                     selectedDutyPointFilter === 'ALL'
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
-                  All ({dailyAssignments.length})
+                  All Posts ({dailyAssignments.length})
                 </button>
-                {dutyPointsList.slice(0, 6).map(([name, count]) => (
+                {dutyPointsList.map(([name, count]) => (
                   <button
                     key={name}
                     onClick={() => setSelectedDutyPointFilter(name === selectedDutyPointFilter ? 'ALL' : name)}
-                    className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-all ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
                       selectedDutyPointFilter === name
                         ? 'bg-emerald-600 text-white shadow-xs font-semibold'
                         : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
                     }`}
                   >
-                    {name}: {count}
+                    {name} ({count})
                   </button>
                 ))}
-                {dutyPointsList.length > 6 && (
-                  <span className="text-[11px] text-slate-400">+{dutyPointsList.length - 6} more</span>
-                )}
               </div>
 
-              {/* View Switcher & Shift Filter */}
-              <div className="flex items-center gap-2 ml-auto">
-                {/* Shift Type Filter */}
-                <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-medium">
-                  <button
-                    onClick={() => setShiftTypeFilter('ALL')}
-                    className={`px-2 py-1 rounded-md transition-all ${shiftTypeFilter === 'ALL' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
-                  >
-                    All
-                  </button>
-                  <button
-                    onClick={() => setShiftTypeFilter('DAY')}
-                    className={`px-2 py-1 rounded-md transition-all ${shiftTypeFilter === 'DAY' ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs font-bold' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
-                  >
-                    Day
-                  </button>
-                  <button
-                    onClick={() => setShiftTypeFilter('NIGHT')}
-                    className={`px-2 py-1 rounded-md transition-all ${shiftTypeFilter === 'NIGHT' ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-xs font-bold' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
-                  >
-                    Night
-                  </button>
-                </div>
-
-                {/* Grid / Table Toggle */}
-                <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800">
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
-                    title="Grid Card View"
-                  >
-                    <LayoutGrid className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setViewMode('table')}
-                    className={`p-1.5 rounded-md transition-all ${viewMode === 'table' ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
-                    title="Compact Table View"
-                  >
-                    <List className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+              <div className="text-[11px] text-slate-400 ml-auto">
+                Showing {filteredAssignments.length} of {dailyAssignments.length} assigned guards
               </div>
             </div>
           </CardContent>
@@ -594,9 +520,8 @@ export default function AssignmentsPortalPage() {
           </Card>
         </div>
 
-        {/* Content Section: Skeletons, Empty State, Grid or Table */}
+        {/* Content Section: Skeletons, Empty State, or Card Grid */}
         {loading ? (
-          /* High-fidelity Skeleton Loaders */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <div
@@ -617,7 +542,6 @@ export default function AssignmentsPortalPage() {
             ))}
           </div>
         ) : filteredAssignments.length === 0 ? (
-          /* Empty State */
           <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-2xl">
             <CardContent className="py-16 text-center space-y-3">
               <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
@@ -628,139 +552,29 @@ export default function AssignmentsPortalPage() {
                   No Duty Assignments Found
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-                  {searchQuery || selectedDutyPointFilter !== 'ALL' || shiftTypeFilter !== 'ALL'
-                    ? 'No assignments matched your search and filter criteria. Try resetting filters.'
+                  {searchQuery || selectedDutyPointFilter !== 'ALL'
+                    ? 'No assignments matched your search or location filter.'
                     : `No guard assignments have been scheduled for ${new Date(selectedDate).toLocaleDateString()} on the selected shift.`}
                 </p>
               </div>
 
-              {(searchQuery || selectedDutyPointFilter !== 'ALL' || shiftTypeFilter !== 'ALL') && (
+              {(searchQuery || selectedDutyPointFilter !== 'ALL') && (
                 <Button
                   onClick={() => {
                     setSearchQuery('')
                     setSelectedDutyPointFilter('ALL')
-                    setShiftTypeFilter('ALL')
                   }}
                   variant="outline"
                   size="sm"
                   className="text-xs mt-2"
                 >
-                  Reset All Filters
+                  Reset Filters
                 </Button>
               )}
             </CardContent>
           </Card>
-        ) : viewMode === 'table' ? (
-          /* Compact Table View */
-          <div className="border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900/90 shadow-xs">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 dark:bg-slate-800/70 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider">
-                  <tr>
-                    <th className="py-3 px-4">#</th>
-                    <th className="py-3 px-4">Assigned Duty Point</th>
-                    <th className="py-3 px-4">Security Guard</th>
-                    <th className="py-3 px-4">Badge ID</th>
-                    <th className="py-3 px-4">Shift Type</th>
-                    <th className="py-3 px-4">Contact Phone</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {filteredAssignments.map((assignment, index) => (
-                    <tr
-                      key={assignment.id}
-                      className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
-                    >
-                      <td className="py-3 px-4 font-mono text-slate-400">{index + 1}</td>
-                      <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60 font-semibold">
-                          <MapPin className="w-3 h-3 shrink-0 text-emerald-600" />
-                          <span>{assignment.dutyPoint.name}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200 dark:border-slate-700 flex items-center justify-center font-bold text-[10px] text-slate-600 dark:text-slate-300">
-                            {assignment.guard.photoUrl ? (
-                              <img
-                                src={assignment.guard.photoUrl}
-                                alt={assignment.guard.fullName}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              getInitials(assignment.guard.fullName)
-                            )}
-                          </div>
-                          <span className="font-semibold text-slate-900 dark:text-white">
-                            {assignment.guard.fullName}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-slate-600 dark:text-slate-400">
-                        <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-semibold">
-                          {assignment.guard.badgeId}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            assignment.guard.shiftType === 'DAY'
-                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
-                              : assignment.guard.shiftType === 'NIGHT'
-                              ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
-                              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                          }`}
-                        >
-                          {assignment.guard.shiftType === 'DAY' ? (
-                            <>
-                              <Sun className="w-2.5 h-2.5" /> Day (DS)
-                            </>
-                          ) : assignment.guard.shiftType === 'NIGHT' ? (
-                            <>
-                              <Moon className="w-2.5 h-2.5" /> Night (NS)
-                            </>
-                          ) : (
-                            'Both Shifts'
-                          )}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        {assignment.guard.phone ? (
-                          <a
-                            href={`tel:${assignment.guard.phone}`}
-                            className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 font-mono"
-                          >
-                            <Phone className="w-3 h-3 text-emerald-600" />
-                            {assignment.guard.phone}
-                          </a>
-                        ) : (
-                          <span className="text-slate-400">--</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        {assignment.guard.phone && (
-                          <Button
-                            asChild
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs px-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                          >
-                            <a href={`tel:${assignment.guard.phone}`}>
-                              <Phone className="w-3 h-3 mr-1" />
-                              Call
-                            </a>
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
         ) : (
-          /* Modern Card Grid View */
+          /* Visual Assignment Cards (Clean view-only for the boss) */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredAssignments.map((assignment) => (
               <Card
@@ -807,7 +621,7 @@ export default function AssignmentsPortalPage() {
                     </div>
                   </div>
 
-                  {/* Shift Badge & Contact Info */}
+                  {/* Shift Badge & Contact Phone */}
                   <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] text-slate-400">Shift</span>
@@ -860,7 +674,7 @@ export default function AssignmentsPortalPage() {
           </div>
         )}
 
-        {/* Printable Official Sign-Off Footer (Only in print) */}
+        {/* Printable Official Sign-Off Footer */}
         <div className="hidden print:block pt-12 text-xs text-black border-t border-slate-300 mt-8">
           <div className="grid grid-cols-3 gap-8">
             <div className="space-y-12">
@@ -893,7 +707,7 @@ export default function AssignmentsPortalPage() {
             Pentecost Convention Centre · Security Operations Unit
           </p>
           <p className="text-[11px]">
-            Daily Duty Assignments Portal · Real-time operational data
+            Daily Duty Assignments · Real-time operational data
           </p>
         </footer>
       </main>

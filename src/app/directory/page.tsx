@@ -383,6 +383,7 @@ export default function GuardDirectoryPage() {
       <div className="print:hidden">
         <PortalNavbar
           currentPage="directory"
+          showPageSwitcher={true}
           onPrint={handlePrint}
           extraActions={
             <Button
