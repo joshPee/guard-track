@@ -319,6 +319,16 @@ export default function GuardDirectoryPage() {
                 className="border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow"
               >
                 <CardContent className="p-4 space-y-3">
+                  {/* Duty Point - Bold at Top */}
+                  <div className="text-center">
+                    <div className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded-lg">
+                      <MapPin className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300 truncate max-w-[150px]">
+                        {getGuardDutyPoint(guard.id) || guard.defaultDutyPoint?.name || 'Unassigned'}
+                      </span>
+                    </div>
+                  </div>
+
                   {/* Photo */}
                   <div className="flex justify-center">
                     <div className="w-20 h-20 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700">
@@ -357,14 +367,8 @@ export default function GuardDirectoryPage() {
                     </span>
                   </div>
 
-                  {/* Details */}
+                  {/* Other Details */}
                   <div className="space-y-1.5 text-xs">
-                    <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
-                      <MapPin className="h-3 w-3 shrink-0" />
-                      <span className="truncate">
-                        {getGuardDutyPoint(guard.id) || guard.defaultDutyPoint?.name || 'Unassigned'}
-                      </span>
-                    </div>
                     {guard.phone && (
                       <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
                         <Phone className="h-3 w-3 shrink-0" />
