@@ -59,6 +59,7 @@ interface Guard {
   defaultDutyPointId?: string | null
   defaultDutyPoint: { id?: string; name: string } | null
   photoUrl: string | null
+  shiftType: string
 }
 
 export default function GuardsPage() {
@@ -67,6 +68,7 @@ export default function GuardsPage() {
   const [dutyPoints, setDutyPoints] = useState<DutyPoint[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL')
+  const [shiftTypeFilter, setShiftTypeFilter] = useState<'ALL' | 'DAY' | 'NIGHT'>('ALL')
   const [loading, setLoading] = useState(true)
 
   // Dialog states
@@ -84,6 +86,7 @@ export default function GuardsPage() {
     status: 'ACTIVE',
     defaultDutyPointId: '',
     photoUrl: '',
+    shiftType: 'BOTH',
   })
 
   useEffect(() => {
@@ -94,7 +97,7 @@ export default function GuardsPage() {
   // Reset to page 1 whenever search or status filter changes
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, statusFilter])
+  }, [searchQuery, statusFilter, shiftTypeFilter])
 
   const fetchGuards = async () => {
     try {
@@ -137,6 +140,7 @@ export default function GuardsPage() {
       status: 'ACTIVE',
       defaultDutyPointId: dutyPoints[0]?.id || '',
       photoUrl: '',
+      shiftType: 'BOTH',
     })
     setFormError('')
     setShowAddModal(true)
@@ -151,6 +155,7 @@ export default function GuardsPage() {
       status: guard.status,
       defaultDutyPointId: guard.defaultDutyPointId || guard.defaultDutyPoint?.id || '',
       photoUrl: guard.photoUrl || '',
+      shiftType: guard.shiftType || 'BOTH',
     })
     setFormError('')
   }
@@ -187,6 +192,7 @@ export default function GuardsPage() {
           status: formData.status,
           defaultDutyPointId: formData.defaultDutyPointId || null,
           photoUrl: formData.photoUrl || null,
+          shiftType: formData.shiftType,
         }),
       })
 
@@ -219,6 +225,7 @@ export default function GuardsPage() {
           phone: guard.phone || null,
           status: 'ACTIVE',
           defaultDutyPointId: guard.defaultDutyPointId || guard.defaultDutyPoint?.id || null,
+          shiftType: guard.shiftType || 'BOTH',
         }),
       })
       if (!res.ok) throw new Error('Failed to reactivate guard')
@@ -266,9 +273,12 @@ export default function GuardsPage() {
       const matchesStatus =
         statusFilter === 'ALL' || guard.status === statusFilter
 
-      return matchesSearch && matchesStatus
+      const matchesShiftType =
+        shiftTypeFilter === 'ALL' || guard.shiftType === shiftTypeFilter
+
+      return matchesSearch && matchesStatus && matchesShiftType
     })
-  }, [guards, searchQuery, statusFilter])
+  }, [guards, searchQuery, statusFilter, shiftTypeFilter])
 
   // Reset to page 1 whenever filter/search changes
   const totalPages = Math.max(1, Math.ceil(filteredGuards.length / PAGE_SIZE))
@@ -312,9 +322,9 @@ export default function GuardsPage() {
       />
 
       <Card className="animate-fade-in-up border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        {/* Toolbar: Search + Status Tabs */}
+        {/* Toolbar: Search + Status Tabs + Shift Type Filter */}
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             {(['ALL', 'ACTIVE', 'INACTIVE'] as const).map((st) => {
               const count =
                 st === 'ALL'
@@ -333,6 +343,28 @@ export default function GuardsPage() {
                   }`}
                 >
                   {st === 'ALL' ? 'All Personnel' : st === 'ACTIVE' ? 'Active' : 'Inactive'} ({count})
+                </button>
+              )
+            })}
+            <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1" />
+            {(['ALL', 'DAY', 'NIGHT'] as const).map((st) => {
+              const count =
+                st === 'ALL'
+                  ? guards.length
+                  : guards.filter((g) => g.shiftType === st).length
+              const isSelected = shiftTypeFilter === st
+
+              return (
+                <button
+                  key={st}
+                  onClick={() => setShiftTypeFilter(st)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-150 ${
+                    isSelected
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {st === 'ALL' ? 'All Shifts' : st === 'DAY' ? 'Day Shift' : 'Night Shift'} ({count})
                 </button>
               )
             })}
@@ -384,6 +416,11 @@ export default function GuardsPage() {
                             {guard.badgeId}
                           </span>
                           <StatusBadge status={guard.status} />
+                          {guard.shiftType && guard.shiftType !== 'BOTH' && (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${guard.shiftType === 'DAY' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'}`}>
+                              {guard.shiftType === 'DAY' ? 'DS' : 'NS'}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 mt-1 flex-wrap">
                           <span className="flex items-center gap-1">
@@ -615,6 +652,28 @@ export default function GuardsPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="shiftType" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Shift Assignment
+              </Label>
+              <Select
+                value={formData.shiftType}
+                onValueChange={(val) => setFormData({ ...formData, shiftType: val })}
+              >
+                <SelectTrigger className="text-sm bg-slate-50 dark:bg-slate-800/80">
+                  <SelectValue placeholder="Select shift type..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DAY">Day Shift Only (DS)</SelectItem>
+                  <SelectItem value="NIGHT">Night Shift Only (NS)</SelectItem>
+                  <SelectItem value="BOTH">Both Shifts (Day & Night)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-slate-400">
+                Assign guards to day shift, night shift, or both shifts
+              </p>
             </div>
 
             <div className="space-y-1.5">

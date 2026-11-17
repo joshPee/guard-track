@@ -1,192 +1,262 @@
-import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { redirect, notFound } from 'next/navigation'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { PageHeader } from '@/components/ui/page-header'
-import { StatusBadge } from '@/components/ui/status-badge'
-import Link from 'next/link'
+import { Label } from '@/components/ui/label'
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  ArrowLeft,
+  Edit2,
+  Trash2,
+  Phone,
+  MapPin,
   User,
   Calendar,
   Clock,
-  MapPin,
-  ArrowLeft,
-  Phone,
-  CheckCircle,
-  AlertTriangle,
-  FileText,
-  ShieldCheck,
-  TrendingUp,
-  TrendingDown,
-  Award,
-  BarChart3,
-  Star,
-  Target,
-  PieChart
+  Shield,
+  Camera,
+  RefreshCw,
+  ShieldOff,
 } from 'lucide-react'
-import { format } from 'date-fns'
-import { ExportGuardDossierButton } from '@/components/ExportGuardDossierButton'
+import { useSession } from 'next-auth/react'
+import { PageHeader } from '@/components/ui/page-header'
 import { Breadcrumb } from '@/components/ui/breadcrumb'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { toast } from '@/components/ui/toast'
 
-async function getGuardWithAttendance(id: string) {
-  const guard = await prisma.guard.findUnique({
-    where: { id },
-    include: {
-      defaultDutyPoint: true,
-      attendanceRecords: {
-        orderBy: { shiftDate: 'desc' },
-        take: 90,
-        include: {
-          shift: true,
-          dutyPoint: true,
-        },
-      },
-    },
-  })
-
-  if (!guard) return null
-
-  // Calculate comprehensive stats
-  const stats = {
-    total: guard.attendanceRecords.length,
-    present: guard.attendanceRecords.filter((r) => r.status === 'PRESENT').length,
-    late: guard.attendanceRecords.filter((r) => r.status === 'LATE').length,
-    absent: guard.attendanceRecords.filter((r) => r.status === 'ABSENT').length,
-    off: guard.attendanceRecords.filter((r) => r.status === 'OFF').length,
-    leave: guard.attendanceRecords.filter((r) => r.status === 'LEAVE').length,
-    excused: guard.attendanceRecords.filter((r) => r.status === 'EXCUSED').length,
-    totalLateMinutes: guard.attendanceRecords.reduce((sum, r) => sum + (r.minutesLate || 0), 0),
-  }
-
-  const attendanceRate = stats.total > 0
-    ? Math.round(((stats.present + stats.late) / stats.total) * 100)
-    : 0
-
-  const lateRate = stats.total > 0
-    ? Math.round((stats.late / stats.total) * 100)
-    : 0
-
-  const absentRate = stats.total > 0
-    ? Math.round((stats.absent / stats.total) * 100)
-    : 0
-
-  // Calculate performance rating
-  let performanceRating = 'Excellent'
-  let performanceColor = 'emerald'
-  if (attendanceRate < 70 || lateRate > 30) {
-    performanceRating = 'Needs Improvement'
-    performanceColor = 'rose'
-  } else if (attendanceRate < 85 || lateRate > 15) {
-    performanceRating = 'Fair'
-    performanceColor = 'amber'
-  } else if (attendanceRate < 95 || lateRate > 5) {
-    performanceRating = 'Good'
-    performanceColor = 'blue'
-  }
-
-  // Calculate most common duty points
-  const dutyPointCounts = guard.attendanceRecords.reduce((acc, r) => {
-    const dpName = r.dutyPoint.name
-    acc[dpName] = (acc[dpName] || 0) + 1
-    return acc
-  }, {} as Record<string, number>)
-
-  const commonDutyPoints = Object.entries(dutyPointCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([name, count]) => ({ name, count, percentage: Math.round((count / stats.total) * 100) }))
-
-  // Calculate last 30 day stats
-  const thirtyDaysAgo = new Date()
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-
-  const recentRecords = guard.attendanceRecords.filter(r => new Date(r.shiftDate) >= thirtyDaysAgo)
-  const recentStats = {
-    total: recentRecords.length,
-    present: recentRecords.filter((r) => r.status === 'PRESENT').length,
-    late: recentRecords.filter((r) => r.status === 'LATE').length,
-    absent: recentRecords.filter((r) => r.status === 'ABSENT').length,
-  }
-
-  const recentAttendanceRate = recentStats.total > 0
-    ? Math.round(((recentStats.present + recentStats.late) / recentStats.total) * 100)
-    : 0
-
-  // Generate weekly attendance data for trend
-  const weeklyData: Array<{ week: string; rate: number; late: number }> = []
-  for (let i = 7; i >= 0; i--) {
-    const weekStart = new Date()
-    weekStart.setDate(weekStart.getDate() - (i * 7))
-    const weekEnd = new Date(weekStart)
-    weekEnd.setDate(weekEnd.getDate() + 6)
-
-    const weekRecords = guard.attendanceRecords.filter(r => {
-      const date = new Date(r.shiftDate)
-      return date >= weekStart && date <= weekEnd
-    })
-
-    const weekPresent = weekRecords.filter(r => r.status === 'PRESENT' || r.status === 'LATE').length
-    const weekLate = weekRecords.filter(r => r.status === 'LATE').length
-    const weekRate = weekRecords.length > 0 ? Math.round((weekPresent / weekRecords.length) * 100) : 0
-
-    weeklyData.push({
-      week: format(weekStart, 'MMM dd'),
-      rate: weekRate,
-      late: weekLate,
-    })
-  }
-
-  return {
-    guard,
-    stats,
-    attendanceRate,
-    lateRate,
-    absentRate,
-    performanceRating,
-    performanceColor,
-    commonDutyPoints,
-    recentStats,
-    recentAttendanceRate,
-    weeklyData,
-  }
+interface Guard {
+  id: string
+  fullName: string
+  badgeId: string
+  phone: string | null
+  status: string
+  defaultDutyPointId?: string | null
+  defaultDutyPoint: { id?: string; name: string } | null
+  photoUrl: string | null
+  shiftType: string
+  createdAt: string
+  updatedAt: string
 }
 
-export default async function GuardProfilePage({
-  params,
-}: {
-  params: { id: string }
-}) {
-  const session = await getServerSession(authOptions)
+interface DutyPoint {
+  id: string
+  name: string
+}
 
-  if (!session) {
-    redirect('/login')
+interface AttendanceRecord {
+  id: string
+  shiftDate: string
+  signInTime: string | null
+  status: string
+  minutesLate: number
+  dutyPoint: { name: string }
+  shift: { name: string }
+}
+
+export default function GuardDetailPage() {
+  const params = useParams()
+  const router = useRouter()
+  const { data: session } = useSession()
+  const [guard, setGuard] = useState<Guard | null>(null)
+  const [dutyPoints, setDutyPoints] = useState<DutyPoint[]>([])
+  const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [formSubmitting, setFormSubmitting] = useState(false)
+  const [formError, setFormError] = useState('')
+
+  const [formData, setFormData] = useState({
+    fullName: '',
+    badgeId: '',
+    phone: '',
+    status: 'ACTIVE',
+    defaultDutyPointId: '',
+    photoUrl: '',
+    shiftType: 'BOTH',
+  })
+
+  const isSupervisor = session?.user?.role === 'SUPERVISOR'
+
+  useEffect(() => {
+    if (params.id) {
+      fetchGuard()
+      fetchDutyPoints()
+      fetchAttendanceHistory()
+    }
+  }, [params.id])
+
+  const fetchGuard = async () => {
+    try {
+      const res = await fetch(`/api/guards/${params.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setGuard(data)
+      }
+    } catch (error) {
+      console.error('Error fetching guard:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const data = await getGuardWithAttendance(params.id)
-
-  if (!data) {
-    notFound()
+  const fetchDutyPoints = async () => {
+    try {
+      const res = await fetch('/api/duty-points')
+      if (res.ok) {
+        const data = await res.json()
+        setDutyPoints(data)
+      }
+    } catch (error) {
+      console.error('Error fetching duty points:', error)
+    }
   }
 
-  const {
-    guard,
-    stats,
-    attendanceRate,
-    lateRate,
-    absentRate,
-    performanceRating,
-    performanceColor,
-    commonDutyPoints,
-    recentStats,
-    recentAttendanceRate,
-    weeklyData,
-  } = data
+  const fetchAttendanceHistory = async () => {
+    try {
+      const res = await fetch(`/api/attendance?guardId=${params.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setAttendanceHistory(data)
+      }
+    } catch (error) {
+      console.error('Error fetching attendance history:', error)
+    }
+  }
+
+  const handleEdit = () => {
+    if (!guard) return
+    setFormData({
+      fullName: guard.fullName,
+      badgeId: guard.badgeId,
+      phone: guard.phone || '',
+      status: guard.status,
+      defaultDutyPointId: guard.defaultDutyPointId || guard.defaultDutyPoint?.id || '',
+      photoUrl: guard.photoUrl || '',
+      shiftType: guard.shiftType || 'BOTH',
+    })
+    setFormError('')
+    setShowEditModal(true)
+  }
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setFormData(prev => ({ ...prev, photoUrl: reader.result as string }))
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setFormSubmitting(true)
+    setFormError('')
+
+    try {
+      const res = await fetch(`/api/guards/${params.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      })
+
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.error || 'Failed to update guard')
+      }
+
+      setShowEditModal(false)
+      toast.success('Guard details updated')
+      await fetchGuard()
+    } catch (err: any) {
+      setFormError(err.message)
+      toast.error(err.message)
+    } finally {
+      setFormSubmitting(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!guard) return
+    setFormSubmitting(true)
+
+    try {
+      const res = await fetch(`/api/guards/${params.id}`, {
+        method: 'DELETE',
+      })
+
+      if (!res.ok) {
+        throw new Error('Failed to delete guard')
+      }
+
+      setShowDeleteModal(false)
+      toast.success('Guard deleted successfully')
+      router.push('/guards')
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setFormSubmitting(false)
+    }
+  }
+
+  const handleReactivate = async () => {
+    if (!guard) return
+    try {
+      const res = await fetch(`/api/guards/${params.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...formData,
+          status: 'ACTIVE',
+        }),
+      })
+
+      if (!res.ok) throw new Error('Failed to reactivate guard')
+      toast.success('Guard reactivated successfully')
+      await fetchGuard()
+    } catch (err: any) {
+      toast.error(err.message)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-slate-500">Loading guard details...</div>
+      </div>
+    )
+  }
+
+  if (!guard) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-slate-500">Guard not found</div>
+      </div>
+    )
+  }
+
+  const shiftTypeLabel = guard.shiftType === 'DAY' ? 'Day Shift (DS)' : guard.shiftType === 'NIGHT' ? 'Night Shift (NS)' : 'Both Shifts'
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Breadcrumb Navigation */}
+    <div className="space-y-4 pb-8">
       <Breadcrumb
         items={[
           { label: 'Operations' },
@@ -194,361 +264,366 @@ export default async function GuardProfilePage({
           { label: guard.fullName },
         ]}
         backHref="/guards"
-        backLabel="Guards Directory"
+        backLabel="Back to Guards"
       />
 
-      {/* Profile Header */}
       <PageHeader
         icon={User}
-        badge={guard.badgeId}
         title={guard.fullName}
-        description={`Registered Guard · Assigned to ${guard.defaultDutyPoint?.name || 'Unassigned Post'}`}
+        description={`Badge ID: ${guard.badgeId} · ${shiftTypeLabel}`}
         color="blue"
         actions={
-          <div className="flex items-center gap-2">
-            <ExportGuardDossierButton
-              guardId={guard.id}
-              data={{
-                guard: {
-                  id: guard.id,
-                  fullName: guard.fullName,
-                  badgeId: guard.badgeId,
-                  phone: guard.phone,
-                  status: guard.status,
-                  defaultDutyPoint: guard.defaultDutyPoint,
-                },
-                stats,
-                attendanceRate,
-                records: guard.attendanceRecords.map((r) => ({
-                  shiftDate: r.shiftDate,
-                  shiftName: r.shift.name,
-                  dutyPointName: r.dutyPoint.name,
-                  signInTime: r.signInTime,
-                  status: r.status,
-                  minutesLate: r.minutesLate,
-                  remarks: r.remarks,
-                })),
-              }}
-            />
-          </div>
+          isSupervisor ? (
+            <div className="flex gap-2">
+              {guard.status === 'INACTIVE' && (
+                <Button
+                  onClick={handleReactivate}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Reactivate
+                </Button>
+              )}
+              <Button onClick={handleEdit} variant="outline">
+                <Edit2 className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+              <Button onClick={() => setShowDeleteModal(true)} variant="outline" className="text-rose-600 hover:text-rose-700 border-rose-200 hover:bg-rose-50">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+            </div>
+          ) : undefined
         }
-        stats={[
-          { label: 'Performance', value: performanceRating },
-          { label: 'Attendance Rate', value: `${attendanceRate}%` },
-          { label: 'Logged Shifts', value: stats.total },
-          { label: 'Late Rate', value: `${lateRate}%`, highlight: lateRate > 15 },
-        ]}
       />
 
-      {/* Guard Quick Info Metrics */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <Card className="border-slate-200 dark:border-slate-800 shadow-sm p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
-              <Phone className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Contact Phone</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-white font-mono">
-                {guard.phone || 'Not recorded'}
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="border-slate-200 dark:border-slate-800 shadow-sm p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400">
-              <MapPin className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Default Post</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-white truncate max-w-[150px]">
-                {guard.defaultDutyPoint?.name || 'Unassigned'}
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="border-slate-200 dark:border-slate-800 shadow-sm p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">
-              <CheckCircle className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Present Shifts</p>
-              <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                {stats.present} / {stats.total} shifts
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="border-slate-200 dark:border-slate-800 shadow-sm p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400">
-              <Clock className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Late Arrivals</p>
-              <p className="text-sm font-bold text-amber-600 dark:text-amber-400">
-                {stats.late} {stats.late === 1 ? 'incident' : 'incidents'}
-              </p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Performance Rating & Analytics */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* Performance Rating Card */}
-        <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
-          <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
-              <Award className="h-4 w-4 text-blue-600" />
-              Performance Rating
-            </CardTitle>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Guard Profile Card */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="text-base">Guard Profile</CardTitle>
           </CardHeader>
-          <CardContent className="pt-4 space-y-4">
-            <div className="text-center py-4">
-              <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full bg-${performanceColor}-50 dark:bg-${performanceColor}-950/40 text-${performanceColor}-600 dark:text-${performanceColor}-400 mb-3`}>
-                <Star className="h-10 w-10" />
-              </div>
-              <h3 className={`text-2xl font-bold text-${performanceColor}-600 dark:text-${performanceColor}-400`}>
-                {performanceRating}
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">Based on attendance patterns</p>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500">Overall Attendance</span>
-                <span className="font-semibold text-slate-900 dark:text-white">{attendanceRate}%</span>
-              </div>
-              <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full bg-${performanceColor}-500`}
-                  style={{ width: `${attendanceRate}%` }}
-                />
-              </div>
-              <div className="flex items-center justify-between text-xs pt-2">
-                <span className="text-slate-500">Late Rate</span>
-                <span className={`font-semibold ${lateRate > 15 ? 'text-amber-600' : 'text-slate-900 dark:text-white'}`}>
-                  {lateRate}%
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500">Absent Rate</span>
-                <span className={`font-semibold ${absentRate > 10 ? 'text-rose-600' : 'text-slate-900 dark:text-white'}`}>
-                  {absentRate}%
-                </span>
+          <CardContent className="space-y-4">
+            {/* Photo */}
+            <div className="flex justify-center">
+              <div className="w-32 h-32 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 border-4 border-slate-200 dark:border-slate-700">
+                {guard.photoUrl ? (
+                  <img
+                    src={guard.photoUrl}
+                    alt={guard.fullName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-slate-400">
+                    <User className="h-12 w-12" />
+                  </div>
+                )}
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Weekly Trend Card */}
-        <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
-          <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
-              <TrendingUp className="h-4 w-4 text-emerald-600" />
-              8-Week Attendance Trend
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4">
+            {/* Basic Info */}
             <div className="space-y-3">
-              {weeklyData.map((week, idx) => {
-                const prevWeek = weeklyData[idx - 1]
-                const trend = prevWeek ? week.rate - prevWeek.rate : 0
-                return (
-                  <div key={week.week} className="flex items-center gap-3">
-                    <span className="text-xs text-slate-500 w-16 shrink-0">{week.week}</span>
-                    <div className="flex-1 h-6 bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden relative">
-                      <div
-                        className={`h-full rounded-lg transition-all ${
-                          week.rate >= 90 ? 'bg-emerald-500' : week.rate >= 75 ? 'bg-amber-500' : 'bg-rose-500'
-                        }`}
-                        style={{ width: `${week.rate}%` }}
-                      />
-                      <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-slate-900 dark:text-white">
-                        {week.rate}%
-                      </span>
-                    </div>
-                    {trend !== 0 && (
-                      <div className={`flex items-center gap-0.5 text-xs ${trend > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {trend > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                        <span>{Math.abs(trend)}%</span>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+              <div>
+                <Label className="text-xs text-slate-500">Full Name</Label>
+                <p className="font-semibold text-sm">{guard.fullName}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500">Badge ID</Label>
+                <p className="font-mono text-sm">{guard.badgeId}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500">Phone</Label>
+                <p className="font-mono text-sm">{guard.phone || 'Not provided'}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500">Shift Assignment</Label>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-bold px-2 py-1 rounded ${
+                    guard.shiftType === 'DAY' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' :
+                    guard.shiftType === 'NIGHT' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300' :
+                    'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                  }`}>
+                    {shiftTypeLabel}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500">Default Duty Point</Label>
+                <p className="text-sm flex items-center gap-1">
+                  <MapPin className="h-3 w-3 text-slate-400" />
+                  {guard.defaultDutyPoint?.name || 'Unassigned'}
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500">Status</Label>
+                <StatusBadge status={guard.status} />
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+              <div className="grid grid-cols-2 gap-2 text-center">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{attendanceHistory.length}</p>
+                  <p className="text-xs text-slate-500">Records</p>
+                </div>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                    {attendanceHistory.filter(r => r.status === 'PRESENT').length}
+                  </p>
+                  <p className="text-xs text-slate-500">Present</p>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Recent 30-Day Stats */}
-        <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
-          <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
-              <Target className="h-4 w-4 text-blue-600" />
-              Last 30 Days
-            </CardTitle>
+        {/* Attendance History */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">Attendance History</CardTitle>
           </CardHeader>
-          <CardContent className="pt-4 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Shifts Logged</p>
-                <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">{recentStats.total}</p>
+          <CardContent>
+            {attendanceHistory.length === 0 ? (
+              <div className="text-center py-8 text-slate-400">
+                <Calendar className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No attendance records found</p>
               </div>
-              <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40">
-                <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Present</p>
-                <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{recentStats.present}</p>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {attendanceHistory.map((record) => (
+                  <div
+                    key={record.id}
+                    className="flex items-center justify-between p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-slate-400" />
+                        <p className="font-semibold text-sm">
+                          {new Date(record.shiftDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {record.signInTime ? new Date(record.signInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {record.dutyPoint?.name || '—'}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Shield className="h-3 w-3" />
+                          {record.shift?.name || '—'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={record.status} />
+                      {record.minutesLate > 0 && (
+                        <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                          +{record.minutesLate}m late
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40">
-                <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Late</p>
-                <p className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-1">{recentStats.late}</p>
-              </div>
-              <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40">
-                <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 uppercase tracking-wider">Absent</p>
-                <p className="text-xl font-bold text-rose-600 dark:text-rose-400 mt-1">{recentStats.absent}</p>
-              </div>
-            </div>
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500">30-Day Attendance Rate</span>
-                <span className={`text-lg font-bold ${recentAttendanceRate >= 90 ? 'text-emerald-600' : recentAttendanceRate >= 75 ? 'text-amber-600' : 'text-rose-600'}`}>
-                  {recentAttendanceRate}%
-                </span>
-              </div>
-              <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mt-2">
-                <div
-                  className={`h-full rounded-full transition-all ${recentAttendanceRate >= 90 ? 'bg-emerald-500' : recentAttendanceRate >= 75 ? 'bg-amber-500' : 'bg-rose-500'}`}
-                  style={{ width: `${recentAttendanceRate}%` }}
-                />
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Common Duty Points */}
-      <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
-        <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
-          <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
-            <PieChart className="h-4 w-4 text-purple-600" />
-            Most Common Duty Points
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-4">
-          {commonDutyPoints.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-4">No duty point data available</p>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              {commonDutyPoints.map((dp, idx) => (
-                <div key={dp.name} className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${idx === 0 ? 'bg-emerald-500' : idx === 1 ? 'bg-blue-500' : idx === 2 ? 'bg-purple-500' : 'bg-slate-500'}`}>
-                      {idx + 1}
-                    </div>
-                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 truncate">
+      {/* Edit Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="sm:max-w-md bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold text-slate-900 dark:text-white">
+              Edit Guard Profile
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Update guard information, photo, and shift assignment
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSave} className="space-y-4 py-2">
+            {formError && (
+              <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900 text-xs font-medium">
+                {formError}
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="fullName" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Full Name
+              </Label>
+              <Input
+                id="fullName"
+                value={formData.fullName}
+                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                className="text-sm bg-slate-50 dark:bg-slate-800/80"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="badgeId" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Badge ID
+              </Label>
+              <Input
+                id="badgeId"
+                value={formData.badgeId}
+                onChange={(e) => setFormData({ ...formData, badgeId: e.target.value })}
+                className="text-sm font-mono bg-slate-50 dark:bg-slate-800/80"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="phone" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Phone Number
+              </Label>
+              <Input
+                id="phone"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                className="text-sm font-mono bg-slate-50 dark:bg-slate-800/80"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="shiftType" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Shift Assignment
+              </Label>
+              <Select
+                value={formData.shiftType}
+                onValueChange={(val) => setFormData({ ...formData, shiftType: val })}
+              >
+                <SelectTrigger className="text-sm bg-slate-50 dark:bg-slate-800/80">
+                  <SelectValue placeholder="Select shift type..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DAY">Day Shift Only (DS)</SelectItem>
+                  <SelectItem value="NIGHT">Night Shift Only (NS)</SelectItem>
+                  <SelectItem value="BOTH">Both Shifts (Day & Night)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="dutyPoint" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Default Duty Point
+              </Label>
+              <Select
+                value={formData.defaultDutyPointId}
+                onValueChange={(val) => setFormData({ ...formData, defaultDutyPointId: val })}
+              >
+                <SelectTrigger className="text-sm bg-slate-50 dark:bg-slate-800/80">
+                  <SelectValue placeholder="Select duty point..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  <SelectItem value="">-- None (Unassigned) --</SelectItem>
+                  {dutyPoints.map((dp) => (
+                    <SelectItem key={dp.id} value={dp.id}>
                       {dp.name}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500">{dp.count} shifts</span>
-                    <span className="font-semibold text-slate-900 dark:text-white">{dp.percentage}%</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mt-2">
-                    <div
-                      className="h-full rounded-full bg-blue-500"
-                      style={{ width: `${dp.percentage}%` }}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="status" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Status
+              </Label>
+              <Select
+                value={formData.status}
+                onValueChange={(val) => setFormData({ ...formData, status: val })}
+              >
+                <SelectTrigger className="text-sm bg-slate-50 dark:bg-slate-800/80">
+                  <SelectValue placeholder="Select status..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="INACTIVE">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="photo" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Guard Photo
+              </Label>
+              <div className="flex items-start gap-3">
+                {formData.photoUrl && (
+                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0">
+                    <img
+                      src={formData.photoUrl}
+                      alt="Guard photo preview"
+                      className="w-full h-full object-cover"
                     />
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Attendance History Table */}
-      <Card className="border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center justify-between gap-4">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
-              <FileText className="h-4 w-4 text-blue-600" />
-              Attendance History (Last 90 Shifts)
-            </CardTitle>
-            <div className="flex items-center gap-3 shrink-0">
-              <div className="hidden sm:flex flex-col items-end gap-1">
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{attendanceRate}% rate</span>
-                <div className="w-24 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${attendanceRate >= 90 ? 'bg-emerald-500' : attendanceRate >= 75 ? 'bg-amber-500' : 'bg-rose-500'}`}
-                    style={{ width: `${attendanceRate}%` }}
+                )}
+                <div className="flex-1 space-y-2">
+                  <Input
+                    id="photo"
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="text-sm bg-slate-50 dark:bg-slate-800/80"
                   />
+                  {formData.photoUrl && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setFormData(prev => ({ ...prev, photoUrl: '' }))}
+                      className="h-7 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                    >
+                      Remove Photo
+                    </Button>
+                  )}
                 </div>
               </div>
-              <span className="text-xs text-slate-400">{guard.attendanceRecords.length} records</span>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {guard.attendanceRecords.length === 0 ? (
-            <div className="py-12 text-center text-slate-400">
-              <Calendar className="h-8 w-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No attendance records found for this guard yet.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse table-enhanced text-sm">
-                <thead>
-                  <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
-                    <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Shift</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Duty Point</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Sign-In Time</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Status</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Mins Late</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Remarks</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {guard.attendanceRecords.map((record) => (
-                    <tr key={record.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="py-3 px-4 font-medium text-slate-900 dark:text-white whitespace-nowrap">
-                        {format(new Date(record.shiftDate), 'EEE, MMM dd, yyyy')}
-                      </td>
-                      <td className="py-3 px-4 text-xs text-slate-600 dark:text-slate-300">
-                        {record.shift.name}
-                      </td>
-                      <td className="py-3 px-4 text-xs text-slate-600 dark:text-slate-300">
-                        {record.dutyPoint.name}
-                      </td>
-                      <td className="py-3 px-4 font-mono text-xs text-slate-600 dark:text-slate-300">
-                        {record.signInTime ? format(new Date(record.signInTime), 'HH:mm') : '—'}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <StatusBadge status={record.status} />
-                      </td>
-                      <td className="py-3 px-4 text-center text-xs">
-                        {record.minutesLate > 0 ? (
-                          <span className="font-bold text-amber-600 dark:text-amber-400">+{record.minutesLate}m</span>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-xs text-slate-500 max-w-[200px] truncate">
-                        {record.remarks || '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowEditModal(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={formSubmitting}>
+                {formSubmitting ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent className="sm:max-w-md bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold text-slate-900 dark:text-white">
+              Delete Guard
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Are you sure you want to delete {guard.fullName}? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowDeleteModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleDelete}
+              disabled={formSubmitting}
+              className="bg-rose-600 hover:bg-rose-700"
+            >
+              {formSubmitting ? 'Deleting...' : 'Delete Guard'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

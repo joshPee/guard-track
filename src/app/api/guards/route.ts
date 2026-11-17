@@ -10,6 +10,7 @@ const guardSchema = z.object({
   phone: z.string().optional(),
   defaultDutyPointId: z.string().optional(),
   photoUrl: z.string().optional(),
+  shiftType: z.enum(['DAY', 'NIGHT', 'BOTH']).optional(),
 })
 
 export async function GET(req: Request) {
@@ -65,6 +66,63 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid data', details: error.errors }, { status: 400 })
     }
     console.error('Error creating guard:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function PUT(req: Request) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session || session.user.role !== 'SUPERVISOR') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json({ error: 'Guard ID required' }, { status: 400 })
+    }
+
+    const body = await req.json()
+    const validatedData = guardSchema.parse(body)
+
+    const guard = await prisma.guard.update({
+      where: { id },
+      data: validatedData,
+    })
+
+    return NextResponse.json(guard)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Invalid data', details: error.errors }, { status: 400 })
+    }
+    console.error('Error updating guard:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session || session.user.role !== 'SUPERVISOR') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json({ error: 'Guard ID required' }, { status: 400 })
+    }
+
+    await prisma.guard.delete({
+      where: { id },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Error deleting guard:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

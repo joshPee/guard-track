@@ -30,6 +30,7 @@ model Guard {
   status             GuardStatus              @default(ACTIVE)
   defaultDutyPointId String?
   photoUrl           String?
+  shiftType          GuardShiftType           @default(BOTH)
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
   attendanceRecords  AttendanceRecord[]
@@ -149,6 +150,12 @@ enum UserRole {
 enum GuardStatus {
   ACTIVE
   INACTIVE
+}
+
+enum GuardShiftType {
+  DAY
+  NIGHT
+  BOTH
 }
 
 enum AttendanceStatus {

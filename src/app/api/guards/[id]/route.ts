@@ -4,12 +4,14 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
-const updateGuardSchema = z.object({
+const guardUpdateSchema = z.object({
   fullName: z.string().min(1).optional(),
   badgeId: z.string().min(1).optional(),
-  phone: z.string().nullable().optional(),
+  phone: z.string().optional(),
+  defaultDutyPointId: z.string().optional(),
+  photoUrl: z.string().optional(),
+  shiftType: z.enum(['DAY', 'NIGHT', 'BOTH']).optional(),
   status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
-  defaultDutyPointId: z.string().nullable().optional(),
 })
 
 export async function GET(
@@ -51,25 +53,14 @@ export async function PUT(
     }
 
     const body = await req.json()
-    const validatedData = updateGuardSchema.parse(body)
+    const validatedData = guardUpdateSchema.parse(body)
 
-    const updatedGuard = await prisma.guard.update({
+    const guard = await prisma.guard.update({
       where: { id: params.id },
-      data: {
-        ...(validatedData.fullName ? { fullName: validatedData.fullName } : {}),
-        ...(validatedData.badgeId ? { badgeId: validatedData.badgeId } : {}),
-        ...(validatedData.phone !== undefined ? { phone: validatedData.phone } : {}),
-        ...(validatedData.status ? { status: validatedData.status } : {}),
-        ...(validatedData.defaultDutyPointId !== undefined
-          ? { defaultDutyPointId: validatedData.defaultDutyPointId || null }
-          : {}),
-      },
-      include: {
-        defaultDutyPoint: true,
-      },
+      data: validatedData,
     })
 
-    return NextResponse.json(updatedGuard)
+    return NextResponse.json(guard)
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid data', details: error.errors }, { status: 400 })
@@ -89,21 +80,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if guard has attendance records
-    const attendanceCount = await prisma.attendanceRecord.count({
-      where: { guardId: params.id },
-    })
-
-    if (attendanceCount > 0) {
-      // Soft-delete to preserve attendance historical records
-      await prisma.guard.update({
-        where: { id: params.id },
-        data: { status: 'INACTIVE' },
-      })
-      return NextResponse.json({ message: 'Guard marked as INACTIVE (historical records preserved)' })
-    }
-
-    // Hard-delete if no records exist
     await prisma.guard.delete({
       where: { id: params.id },
     })
