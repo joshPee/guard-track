@@ -16,6 +16,8 @@ import {
   CalendarCheck,
   CalendarDays,
   Calendar as CalendarIcon,
+  Contact,
+  ClipboardList,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
@@ -36,6 +38,8 @@ function getNavigationSections(role?: string) {
         { name: 'Attendance', href: '/attendance', icon: Shield },
         { name: 'Guards', href: '/guards', icon: Users },
         { name: 'Duty Points', href: '/duty-points', icon: MapPin },
+        { name: 'Directory', href: '/directory', icon: Contact },
+        { name: 'Assignments', href: '/assignments', icon: ClipboardList },
         { name: 'Leave & Exeats', href: '/leave', icon: CalendarCheck },
         { name: 'Heatmap', href: '/heatmap', icon: CalendarDays },
         { name: 'Schedule', href: '/schedule', icon: CalendarIcon },

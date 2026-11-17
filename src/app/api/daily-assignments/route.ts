@@ -6,9 +6,13 @@ import { z } from 'zod'
 
 const assignmentSchema = z.object({
   guardId: z.string(),
-  dutyPointId: z.string(),
+  dutyPointId: z.string().optional().nullable(),
   shiftId: z.string(),
   date: z.string(),
+})
+
+const batchSchema = z.object({
+  batch: z.array(assignmentSchema),
 })
 
 export async function GET(req: Request) {
@@ -43,40 +47,84 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    // Removed auth check to allow directory page to make assignments
-    // TODO: Add API key or similar authentication in production
     const body = await req.json()
-    const validatedData = assignmentSchema.parse(body)
 
-    const existingAssignment = await prisma.dailyDutyAssignment.findUnique({
+    // Handle batch assignment updates
+    if (body && Array.isArray(body.batch)) {
+      const { batch } = batchSchema.parse(body)
+
+      const operations = batch.map((item) => {
+        const isUnassigned = !item.dutyPointId || item.dutyPointId === '' || item.dutyPointId === 'unassigned'
+        const assignmentDate = new Date(item.date)
+
+        if (isUnassigned) {
+          return prisma.dailyDutyAssignment.deleteMany({
+            where: {
+              guardId: item.guardId,
+              shiftId: item.shiftId,
+              date: assignmentDate,
+            },
+          })
+        }
+
+        return prisma.dailyDutyAssignment.upsert({
+          where: {
+            guardId_shiftId_date: {
+              guardId: item.guardId,
+              shiftId: item.shiftId,
+              date: assignmentDate,
+            },
+          },
+          update: {
+            dutyPointId: item.dutyPointId as string,
+          },
+          create: {
+            guardId: item.guardId,
+            dutyPointId: item.dutyPointId as string,
+            shiftId: item.shiftId,
+            date: assignmentDate,
+          },
+        })
+      })
+
+      const results = await prisma.$transaction(operations)
+      return NextResponse.json({ success: true, count: results.length })
+    }
+
+    // Handle single assignment update
+    const validatedData = assignmentSchema.parse(body)
+    const isUnassigned = !validatedData.dutyPointId || validatedData.dutyPointId === '' || validatedData.dutyPointId === 'unassigned'
+    const assignmentDate = new Date(validatedData.date)
+
+    if (isUnassigned) {
+      await prisma.dailyDutyAssignment.deleteMany({
+        where: {
+          guardId: validatedData.guardId,
+          shiftId: validatedData.shiftId,
+          date: assignmentDate,
+        },
+      })
+      return NextResponse.json({ success: true, message: 'Assignment cleared' })
+    }
+
+    const assignment = await prisma.dailyDutyAssignment.upsert({
       where: {
         guardId_shiftId_date: {
           guardId: validatedData.guardId,
           shiftId: validatedData.shiftId,
-          date: new Date(validatedData.date),
+          date: assignmentDate,
         },
       },
+      update: {
+        dutyPointId: validatedData.dutyPointId as string,
+      },
+      create: {
+        guardId: validatedData.guardId,
+        dutyPointId: validatedData.dutyPointId as string,
+        shiftId: validatedData.shiftId,
+        date: assignmentDate,
+      },
     })
-
-    let assignment
-
-    if (existingAssignment) {
-      assignment = await prisma.dailyDutyAssignment.update({
-        where: { id: existingAssignment.id },
-        data: {
-          dutyPointId: validatedData.dutyPointId,
-        },
-      })
-    } else {
-      assignment = await prisma.dailyDutyAssignment.create({
-        data: {
-          guardId: validatedData.guardId,
-          dutyPointId: validatedData.dutyPointId,
-          shiftId: validatedData.shiftId,
-          date: new Date(validatedData.date),
-        },
-      })
-    }
 
     return NextResponse.json(assignment, { status: 201 })
   } catch (error) {

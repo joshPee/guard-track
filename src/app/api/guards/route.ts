@@ -16,11 +16,6 @@ const guardSchema = z.object({
 
 export async function GET(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     // Allow callers to opt into fetching all statuses (e.g. guards management page)
     const { searchParams } = new URL(req.url)
     const statusParam = searchParams.get('status') // 'ACTIVE' | 'INACTIVE' | 'ALL'
