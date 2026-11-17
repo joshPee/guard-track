@@ -50,6 +50,7 @@ interface Guard {
   defaultDutyPoint: { id?: string; name: string } | null
   photoUrl: string | null
   shiftType: string
+  startDate: string | null
   createdAt: string
   updatedAt: string
 }
@@ -90,6 +91,7 @@ export default function GuardDetailPage() {
     defaultDutyPointId: '',
     photoUrl: '',
     shiftType: 'BOTH',
+    startDate: '',
   })
 
   const isSupervisor = session?.user?.role === 'SUPERVISOR'
@@ -150,6 +152,7 @@ export default function GuardDetailPage() {
       defaultDutyPointId: guard.defaultDutyPointId || guard.defaultDutyPoint?.id || '',
       photoUrl: guard.photoUrl || '',
       shiftType: guard.shiftType || 'BOTH',
+      startDate: guard.startDate ? new Date(guard.startDate).toISOString().split('T')[0] : '',
     })
     setFormError('')
     setShowEditModal(true)
@@ -172,10 +175,15 @@ export default function GuardDetailPage() {
     setFormError('')
 
     try {
+      const data = {
+        ...formData,
+        startDate: formData.startDate ? new Date(formData.startDate) : null,
+      }
+
       const res = await fetch(`/api/guards/${params.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(data),
       })
 
       if (!res.ok) {
@@ -358,6 +366,15 @@ export default function GuardDetailPage() {
                 <Label className="text-xs text-slate-500">Status</Label>
                 <StatusBadge status={guard.status} />
               </div>
+              {guard.startDate && (
+                <div>
+                  <Label className="text-xs text-slate-500">Start Date</Label>
+                  <p className="text-sm flex items-center gap-1">
+                    <Calendar className="h-3 w-3 text-slate-400" />
+                    {new Date(guard.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Stats */}
@@ -506,6 +523,19 @@ export default function GuardDetailPage() {
                   <SelectItem value="BOTH">Both Shifts (Day & Night)</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="startDate" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Start Date
+              </Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={formData.startDate}
+                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                className="text-sm bg-slate-50 dark:bg-slate-800/80"
+              />
             </div>
 
             <div className="space-y-1.5">

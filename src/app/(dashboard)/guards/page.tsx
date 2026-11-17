@@ -35,7 +35,8 @@ import {
   AlertCircle,
   Loader2,
   RefreshCw,
-  ShieldOff
+  ShieldOff,
+  Calendar
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { PageHeader } from '@/components/ui/page-header'
@@ -60,6 +61,7 @@ interface Guard {
   defaultDutyPoint: { id?: string; name: string } | null
   photoUrl: string | null
   shiftType: string
+  startDate: string | null
 }
 
 export default function GuardsPage() {
@@ -87,6 +89,7 @@ export default function GuardsPage() {
     defaultDutyPointId: '',
     photoUrl: '',
     shiftType: 'BOTH',
+    startDate: '',
   })
 
   useEffect(() => {
@@ -141,6 +144,7 @@ export default function GuardsPage() {
       defaultDutyPointId: dutyPoints[0]?.id || '',
       photoUrl: '',
       shiftType: 'BOTH',
+      startDate: new Date().toISOString().split('T')[0],
     })
     setFormError('')
     setShowAddModal(true)
@@ -156,6 +160,7 @@ export default function GuardsPage() {
       defaultDutyPointId: guard.defaultDutyPointId || guard.defaultDutyPoint?.id || '',
       photoUrl: guard.photoUrl || '',
       shiftType: guard.shiftType || 'BOTH',
+      startDate: guard.startDate ? new Date(guard.startDate).toISOString().split('T')[0] : '',
     })
     setFormError('')
   }
@@ -193,6 +198,7 @@ export default function GuardsPage() {
           defaultDutyPointId: formData.defaultDutyPointId || null,
           photoUrl: formData.photoUrl || null,
           shiftType: formData.shiftType,
+          startDate: formData.startDate ? new Date(formData.startDate) : null,
         }),
       })
 
@@ -226,6 +232,7 @@ export default function GuardsPage() {
           status: 'ACTIVE',
           defaultDutyPointId: guard.defaultDutyPointId || guard.defaultDutyPoint?.id || null,
           shiftType: guard.shiftType || 'BOTH',
+          startDate: guard.startDate,
         }),
       })
       if (!res.ok) throw new Error('Failed to reactivate guard')
@@ -434,6 +441,12 @@ export default function GuardsPage() {
                             </span>
                           ) : (
                             <span className="text-slate-400">No phone</span>
+                          )}
+                          {guard.startDate && (
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3 text-slate-400 shrink-0" />
+                              {new Date(guard.startDate).toLocaleDateString()}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -673,6 +686,22 @@ export default function GuardsPage() {
               </Select>
               <p className="text-[10px] text-slate-400">
                 Assign guards to day shift, night shift, or both shifts
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="startDate" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Start Date
+              </Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={formData.startDate}
+                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                className="text-sm bg-slate-50 dark:bg-slate-800/80"
+              />
+              <p className="text-[10px] text-slate-400">
+                Date when the guard started their duties
               </p>
             </div>
 

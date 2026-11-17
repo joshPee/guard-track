@@ -12,6 +12,7 @@ const guardUpdateSchema = z.object({
   photoUrl: z.string().optional(),
   shiftType: z.enum(['DAY', 'NIGHT', 'BOTH']).optional(),
   status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
+  startDate: z.string().optional(),
 })
 
 export async function GET(
@@ -55,9 +56,14 @@ export async function PUT(
     const body = await req.json()
     const validatedData = guardUpdateSchema.parse(body)
 
+    const data: any = { ...validatedData }
+    if (validatedData.startDate) {
+      data.startDate = new Date(validatedData.startDate)
+    }
+
     const guard = await prisma.guard.update({
       where: { id: params.id },
-      data: validatedData,
+      data,
     })
 
     return NextResponse.json(guard)
