@@ -49,8 +49,12 @@ interface Shift {
 }
 
 interface DailyAssignment {
+  id: string
   guardId: string
+  dutyPointId: string
   dutyPoint: { name: string }
+  shift: { name: string }
+  date: string
 }
 
 export default function GuardDirectoryPage() {
@@ -63,6 +67,9 @@ export default function GuardDirectoryPage() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [selectedShift, setSelectedShift] = useState('')
   const [loading, setLoading] = useState(true)
+  const [assignMode, setAssignMode] = useState(false)
+  const [assignments, setAssignments] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     fetchGuards()
@@ -137,11 +144,73 @@ export default function GuardDirectoryPage() {
     return assignment?.dutyPoint?.name || null
   }
 
+  const getGuardDutyPointId = (guardId: string) => {
+    const assignment = dailyAssignments.find(a => a.guardId === guardId)
+    return assignment?.dutyPointId || null
+  }
+
+  const getGuardAssignment = (guardId: string) => {
+    return dailyAssignments.find(a => a.guardId === guardId)
+  }
+
+  const toggleAssignMode = () => {
+    if (!assignMode) {
+      // Entering assign mode - load existing assignments
+      const newAssignments: Record<string, string> = {}
+      dailyAssignments.forEach(a => {
+        newAssignments[a.guardId] = a.dutyPointId
+      })
+      setAssignments(newAssignments)
+    }
+    setAssignMode(!assignMode)
+  }
+
+  const updateAssignment = (guardId: string, dutyPointId: string) => {
+    setAssignments(prev => ({ ...prev, [guardId]: dutyPointId }))
+  }
+
+  const saveAssignments = async () => {
+    setSaving(true)
+    try {
+      // Save all assignments
+      for (const [guardId, dutyPointId] of Object.entries(assignments)) {
+        await fetch('/api/daily-assignments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            guardId,
+            dutyPointId,
+            shiftId: selectedShift,
+            date: selectedDate,
+          }),
+        })
+      }
+
+      // Refresh assignments
+      await fetchDailyAssignments()
+      setAssignMode(false)
+      alert('Assignments saved successfully!')
+    } catch (error) {
+      console.error('Error saving assignments:', error)
+      alert('Failed to save assignments')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const filteredGuards = guards.filter((guard) => {
     const matchesSearch =
       searchQuery.trim() === '' ||
       guard.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       guard.badgeId.toLowerCase().includes(searchQuery.toLowerCase())
+
+    // In assign mode, only show guards matching the selected shift
+    if (assignMode) {
+      const selectedShiftData = shifts.find(s => s.id === selectedShift)
+      const isDayShift = selectedShiftData?.name.toLowerCase().includes('day')
+      const matchesShift = isDayShift ? guard.shiftType === 'DAY' : guard.shiftType === 'NIGHT'
+      return matchesSearch && matchesShift
+    }
 
     const matchesShiftType =
       shiftTypeFilter === 'ALL' || guard.shiftType === shiftTypeFilter
@@ -222,23 +291,25 @@ export default function GuardDirectoryPage() {
                 </Select>
               </div>
 
-              {/* Shift Type Filter */}
-              <div className="flex-1">
-                <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">
-                  <Shield className="h-3 w-3 inline mr-1" />
-                  Guard Type
-                </Label>
-                <Select value={shiftTypeFilter} onValueChange={(val: any) => setShiftTypeFilter(val)}>
-                  <SelectTrigger className="text-sm bg-slate-50 dark:bg-slate-800/80">
-                    <SelectValue placeholder="All types..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All Guards</SelectItem>
-                    <SelectItem value="DAY">Day Shift (DS)</SelectItem>
-                    <SelectItem value="NIGHT">Night Shift (NS)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Shift Type Filter - Hidden in assign mode */}
+              {!assignMode && (
+                <div className="flex-1">
+                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">
+                    <Shield className="h-3 w-3 inline mr-1" />
+                    Guard Type
+                  </Label>
+                  <Select value={shiftTypeFilter} onValueChange={(val: any) => setShiftTypeFilter(val)}>
+                    <SelectTrigger className="text-sm bg-slate-50 dark:bg-slate-800/80">
+                      <SelectValue placeholder="All types..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Guards</SelectItem>
+                      <SelectItem value="DAY">Day Shift (DS)</SelectItem>
+                      <SelectItem value="NIGHT">Night Shift (NS)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {/* Search */}
               <div className="flex-1">
@@ -255,7 +326,24 @@ export default function GuardDirectoryPage() {
               </div>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <Button
+                onClick={toggleAssignMode}
+                variant={assignMode ? "default" : "outline"}
+                className={assignMode ? "bg-blue-600 hover:bg-blue-700 text-white gap-2" : "gap-2"}
+              >
+                {assignMode ? (
+                  <>
+                    <Shield className="h-4 w-4" />
+                    Cancel
+                  </>
+                ) : (
+                  <>
+                    <Shield className="h-4 w-4" />
+                    Assign Mode
+                  </>
+                )}
+              </Button>
               <Button onClick={exportCSV} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
                 <Download className="h-4 w-4" />
                 Export Directory
@@ -312,8 +400,20 @@ export default function GuardDirectoryPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredGuards.map((guard) => (
+          <>
+            {assignMode && (
+              <div className="flex justify-center py-4">
+                <Button
+                  onClick={saveAssignments}
+                  disabled={saving}
+                  className="bg-blue-600 hover:bg-blue-700 text-white gap-2 px-8"
+                >
+                  {saving ? 'Saving...' : 'Save All Assignments'}
+                </Button>
+              </div>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredGuards.map((guard) => (
               <Card
                 key={guard.id}
                 className="border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow"
@@ -321,12 +421,31 @@ export default function GuardDirectoryPage() {
                 <CardContent className="p-4 space-y-3">
                   {/* Duty Point - Bold at Top */}
                   <div className="text-center">
-                    <div className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded-lg">
-                      <MapPin className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                      <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300 truncate max-w-[150px]">
-                        {getGuardDutyPoint(guard.id) || guard.defaultDutyPoint?.name || 'Unassigned'}
-                      </span>
-                    </div>
+                    {assignMode ? (
+                      <Select
+                        value={assignments[guard.id] || getGuardDutyPointId(guard.id) || ''}
+                        onValueChange={(value) => updateAssignment(guard.id, value)}
+                      >
+                        <SelectTrigger className="h-8 text-xs bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800">
+                          <SelectValue placeholder="Select duty point..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">-- Unassigned --</SelectItem>
+                          {dutyPoints.map((dp) => (
+                            <SelectItem key={dp.id} value={dp.id}>
+                              {dp.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded-lg">
+                        <MapPin className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                        <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300 truncate max-w-[150px]">
+                          {getGuardDutyPoint(guard.id) || guard.defaultDutyPoint?.name || 'Unassigned'}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Photo */}
@@ -386,6 +505,7 @@ export default function GuardDirectoryPage() {
               </Card>
             ))}
           </div>
+          </>
         )}
 
         {/* Footer */}
