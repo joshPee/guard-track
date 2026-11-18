@@ -16,6 +16,7 @@ export async function uploadImage(buffer: Buffer, contentType: string, prefix = 
     access: 'public',
     contentType: contentType === 'image/png' ? 'image/png' : 'image/jpeg',
     addRandomSuffix: false,
+    token: process.env.BLOB_READ_WRITE_TOKEN,
   })
 
   return blob.url
@@ -24,7 +25,7 @@ export async function uploadImage(buffer: Buffer, contentType: string, prefix = 
 /** Best-effort delete of a previously uploaded blob */
 export async function deleteImageByUrl(url: string) {
   try {
-    await del(url)
+    await del(url, { token: process.env.BLOB_READ_WRITE_TOKEN })
   } catch (err) {
     console.error('Failed to delete blob:', err)
   }
