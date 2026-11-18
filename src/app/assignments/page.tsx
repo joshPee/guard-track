@@ -17,10 +17,8 @@ import {
   Search,
   MapPin,
   Phone,
-  Shield,
   Calendar,
   Download,
-  Printer,
   ChevronLeft,
   ChevronRight,
   Sun,
@@ -69,6 +67,8 @@ export default function AssignmentsPortalPage() {
   const [selectedDutyPointFilter, setSelectedDutyPointFilter] = useState('ALL')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  // Outside deployed count — shift-independent, derived from all assignments for the date
+  const [outsideDeployedCount, setOutsideDeployedCount] = useState(0)
 
   // Fetch shifts on initial mount
   useEffect(() => {
@@ -105,10 +105,24 @@ export default function AssignmentsPortalPage() {
     else setRefreshing(true)
 
     try {
+      // Shift-specific assignments (for the guard card list)
       const res = await fetch(`/api/daily-assignments?date=${selectedDate}&shiftId=${selectedShift}`)
       if (res.ok) {
         const data = await res.json()
         setDailyAssignments(Array.isArray(data) ? data : [])
+      }
+
+      // Shift-agnostic: fetch ALL assignments for the date to get true outside-deployed count
+      const allRes = await fetch(`/api/daily-assignments?date=${selectedDate}`)
+      if (allRes.ok) {
+        const allData: DailyAssignment[] = await allRes.json()
+        const outside = Array.isArray(allData)
+          ? allData.filter((a) =>
+              a.dutyPoint.name.toLowerCase().includes('outside deployment') ||
+              a.dutyPoint.name.toLowerCase().includes('outside')
+            ).length
+          : 0
+        setOutsideDeployedCount(outside)
       }
     } catch (error) {
       console.error('Error fetching daily assignments:', error)
@@ -169,15 +183,10 @@ export default function AssignmentsPortalPage() {
 
   // Summary statistics
   const stats = useMemo(() => {
-    const dayCount = dailyAssignments.filter((a) => a.guard.shiftType === 'DAY').length
-    const nightCount = dailyAssignments.filter((a) => a.guard.shiftType === 'NIGHT').length
     const offDutyCount = dailyAssignments.filter((a) =>
       a.dutyPoint.name.toLowerCase().includes('off duty') || a.dutyPoint.name.toLowerCase().includes('off day')
     ).length
-    const outsideCount = dailyAssignments.filter((a) =>
-      a.dutyPoint.name.toLowerCase().includes('outside deployment') || a.dutyPoint.name.toLowerCase().includes('outside')
-    ).length
-    const campusCount = Math.max(0, dailyAssignments.length - offDutyCount - outsideCount)
+    const campusCount = Math.max(0, dailyAssignments.length - offDutyCount)
     const pointsCount = new Set(
       dailyAssignments
         .filter((a) => !a.dutyPoint.name.toLowerCase().includes('off duty'))
@@ -186,14 +195,12 @@ export default function AssignmentsPortalPage() {
     return {
       total: dailyAssignments.length,
       filtered: filteredAssignments.length,
-      dayCount,
-      nightCount,
       offDutyCount,
-      outsideCount,
+      outsideCount: outsideDeployedCount,
       campusCount,
       pointsCount,
     }
-  }, [dailyAssignments, filteredAssignments.length])
+  }, [dailyAssignments, filteredAssignments.length, outsideDeployedCount])
 
   // CSV Export
   const exportCSV = () => {
@@ -247,17 +254,29 @@ export default function AssignmentsPortalPage() {
           subtitle="Daily Duty Assignments · Executive View"
           onPrint={handlePrint}
           extraActions={
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fetchDailyAssignments(true)}
-              disabled={refreshing}
-              className="h-9 text-xs border-slate-200 dark:border-slate-800"
-              title="Refresh assignments"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline ml-1.5">Refresh</span>
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportCSV}
+                className="h-9 text-xs border-slate-200 dark:border-slate-800 gap-1.5"
+                title="Export assignments as CSV"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Export</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchDailyAssignments(true)}
+                disabled={refreshing}
+                className="h-9 text-xs border-slate-200 dark:border-slate-800"
+                title="Refresh assignments"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline ml-1.5">Refresh</span>
+              </Button>
+            </>
           }
         />
       </div>
@@ -284,41 +303,6 @@ export default function AssignmentsPortalPage() {
       </div>
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 print:p-4 print:max-w-none">
-        {/* Executive Header Banner */}
-        <div className="print:hidden flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-900 text-white shadow-md">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/15 text-blue-100 border border-white/20">
-              <Shield className="w-3.5 h-3.5 text-blue-200" />
-              <span>Campus Security Operations</span>
-            </div>
-            <h2 className="text-2xl font-bold tracking-tight">Daily Duty Assignments</h2>
-            <p className="text-xs text-blue-200/90 max-w-xl">
-              Real-time duty point assignments for security personnel deployed across Pentecost Convention Centre.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              onClick={exportCSV}
-              variant="secondary"
-              size="sm"
-              className="bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-semibold gap-1.5 backdrop-blur-xs"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Export CSV</span>
-            </Button>
-            <Button
-              onClick={handlePrint}
-              variant="secondary"
-              size="sm"
-              className="bg-white text-blue-900 hover:bg-blue-50 text-xs font-bold gap-1.5 shadow-xs"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print Duty Sheet</span>
-            </Button>
-          </div>
-        </div>
-
         {/* Filters and Controls Card */}
         <Card className="print:hidden border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-2xl">
           <CardContent className="p-4 sm:p-5 space-y-4">
@@ -450,40 +434,37 @@ export default function AssignmentsPortalPage() {
               </div>
             </div>
 
-            {/* Location Filter Bar */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div className="flex flex-wrap items-center gap-1.5 max-w-4xl">
-                <span className="text-slate-500 font-medium mr-1 flex items-center gap-1">
-                  <Building2 className="w-3 h-3 text-slate-400" />
-                  Filter Post:
-                </span>
-                <button
-                  onClick={() => setSelectedDutyPointFilter('ALL')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                    selectedDutyPointFilter === 'ALL'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  All Posts ({dailyAssignments.length})
-                </button>
-                {dutyPointsList.map(([name, count]) => (
+            {/* Location Filter Bar — compact dropdown */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-1">
+                <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 shrink-0 whitespace-nowrap">
+                  Filter Post
+                </Label>
+                <Select value={selectedDutyPointFilter} onValueChange={setSelectedDutyPointFilter}>
+                  <SelectTrigger className="h-8 text-xs flex-1 max-w-xs bg-slate-50/70 dark:bg-slate-800/60">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Posts ({dailyAssignments.length})</SelectItem>
+                    {dutyPointsList.map(([name, count]) => (
+                      <SelectItem key={name} value={name}>
+                        {name} ({count})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedDutyPointFilter !== 'ALL' && (
                   <button
-                    key={name}
-                    onClick={() => setSelectedDutyPointFilter(name === selectedDutyPointFilter ? 'ALL' : name)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                      selectedDutyPointFilter === name
-                        ? 'bg-emerald-600 text-white shadow-xs font-semibold'
-                        : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
-                    }`}
+                    onClick={() => setSelectedDutyPointFilter('ALL')}
+                    className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline shrink-0"
                   >
-                    {name} ({count})
+                    Clear
                   </button>
-                ))}
+                )}
               </div>
-
-              <div className="text-[11px] text-slate-400 ml-auto">
-                Showing {filteredAssignments.length} of {dailyAssignments.length} assigned guards
+              <div className="text-[11px] text-slate-400 shrink-0">
+                {filteredAssignments.length} of {dailyAssignments.length} guards
               </div>
             </div>
           </CardContent>
@@ -517,7 +498,7 @@ export default function AssignmentsPortalPage() {
             <CardContent className="p-3.5 text-center">
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Outside Deployed</p>
               <p className="text-2xl font-black text-blue-600 dark:text-blue-400 tracking-tight mt-0.5">
-                {stats.outsideCount}
+                {outsideDeployedCount}
               </p>
               <p className="text-[10px] text-blue-500/80 dark:text-blue-400/80 mt-0.5">External deployment</p>
             </CardContent>
