@@ -6,7 +6,6 @@ import {
   Shield,
   Printer,
   Sparkles,
-  Eye,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -40,12 +39,6 @@ export function PortalNavbar({
               <span className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight whitespace-nowrap">
                 PCC Security Unit
               </span>
-              {!showPageSwitcher && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60 shrink-0">
-                  <Eye className="w-2.5 h-2.5" />
-                  View Only
-                </span>
-              )}
               {subtitle && (
                 <span className="hidden lg:inline text-slate-300 dark:text-slate-700">·</span>
               )}

@@ -69,6 +69,15 @@ export default function AssignmentsPortalPage() {
   const [refreshing, setRefreshing] = useState(false)
   // Outside deployed count — shift-independent, derived from all assignments for the date
   const [outsideDeployedCount, setOutsideDeployedCount] = useState(0)
+  // Dynamic greeting for Mr. Achaab based on time of day
+  const [greeting, setGreeting] = useState('Good day')
+
+  useEffect(() => {
+    const hour = new Date().getHours()
+    if (hour < 12) setGreeting('Good morning')
+    else if (hour < 17) setGreeting('Good afternoon')
+    else setGreeting('Good evening')
+  }, [])
 
   // Fetch shifts on initial mount
   useEffect(() => {
@@ -162,10 +171,14 @@ export default function AssignmentsPortalPage() {
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))
   }, [dailyAssignments])
 
-  // Filtered assignments with memoization
+  // Filtered assignments with memoization (excludes outside deployed on "ALL" view)
   const filteredAssignments = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     return dailyAssignments.filter((assignment) => {
+      const isOutside =
+        assignment.dutyPoint.name.toLowerCase().includes('outside deployment') ||
+        assignment.dutyPoint.name.toLowerCase().includes('outside')
+
       const matchesSearch =
         q === '' ||
         assignment.guard.fullName.toLowerCase().includes(q) ||
@@ -173,9 +186,11 @@ export default function AssignmentsPortalPage() {
         assignment.dutyPoint.name.toLowerCase().includes(q) ||
         (assignment.guard.phone && assignment.guard.phone.includes(q))
 
+      // When "ALL" is selected without search query, exclude outside deployed personnel so campus roster matches totalAssigned
       const matchesDutyPoint =
-        selectedDutyPointFilter === 'ALL' ||
-        assignment.dutyPoint.name === selectedDutyPointFilter
+        selectedDutyPointFilter === 'ALL'
+          ? q !== '' ? true : !isOutside
+          : assignment.dutyPoint.name === selectedDutyPointFilter
 
       return matchesSearch && matchesDutyPoint
     })
@@ -311,6 +326,25 @@ export default function AssignmentsPortalPage() {
       </div>
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 print:p-4 print:max-w-none">
+        {/* Executive Greeting Header for Mr. Achaab */}
+        <div className="print:hidden flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <div className="space-y-0.5">
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+              {greeting}, Mr. Achaab
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Daily deployment overview for {new Date(selectedDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · {selectedShiftObj?.name || 'Selected Shift'}.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400 shrink-0">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60 text-slate-700 dark:text-slate-300">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Campus Security Active</span>
+            </span>
+          </div>
+        </div>
+
         {/* Filters and Controls Card */}
         <Card className="print:hidden border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-2xl">
           <CardContent className="p-4 sm:p-5 space-y-4">
@@ -454,7 +488,7 @@ export default function AssignmentsPortalPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">All Posts ({dailyAssignments.length})</SelectItem>
+                    <SelectItem value="ALL">All Posts ({stats.totalAssigned})</SelectItem>
                     {dutyPointsList.map(([name, count]) => (
                       <SelectItem key={name} value={name}>
                         {name} ({count})
@@ -472,7 +506,11 @@ export default function AssignmentsPortalPage() {
                 )}
               </div>
               <div className="text-[11px] text-slate-400 shrink-0">
-                {filteredAssignments.length} of {dailyAssignments.length} guards
+                Showing {filteredAssignments.length} of{' '}
+                {selectedDutyPointFilter === 'ALL'
+                  ? stats.totalAssigned
+                  : dutyPointsList.find(([name]) => name === selectedDutyPointFilter)?.[1] ?? stats.totalAssigned}{' '}
+                guards
               </div>
             </div>
           </CardContent>
