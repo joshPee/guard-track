@@ -36,7 +36,8 @@ import {
   Loader2,
   RefreshCw,
   ShieldOff,
-  Calendar
+  Calendar,
+  Upload
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { PageHeader } from '@/components/ui/page-header'
@@ -45,6 +46,7 @@ import { StatusBadge } from '@/components/ui/status-badge'
 import { TableRowSkeleton } from '@/components/ui/skeleton'
 import { toast } from '@/components/ui/toast'
 import Link from 'next/link'
+import { uploadGuardPhoto, previewUrl, revokePreview } from '@/lib/image-upload'
 
 interface DutyPoint {
   id: string
@@ -79,6 +81,8 @@ export default function GuardsPage() {
   const [deletingGuard, setDeletingGuard] = useState<Guard | null>(null)
   const [formSubmitting, setFormSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
 
   // Form fields
   const [formData, setFormData] = useState({
@@ -147,6 +151,7 @@ export default function GuardsPage() {
       startDate: new Date().toISOString().split('T')[0],
     })
     setFormError('')
+    setPhotoPreview(null)
     setShowAddModal(true)
   }
 
@@ -163,18 +168,32 @@ export default function GuardsPage() {
       startDate: guard.startDate ? new Date(guard.startDate).toISOString().split('T')[0] : '',
     })
     setFormError('')
+    setPhotoPreview(null)
   }
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
-    // For now, convert to base64 for demo (in production, use a proper image hosting service)
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      setFormData(prev => ({ ...prev, photoUrl: reader.result as string }))
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file')
+      return
     }
-    reader.readAsDataURL(file)
+
+    const preview = previewUrl(file)
+    setPhotoPreview(preview)
+    setUploadingPhoto(true)
+    try {
+      const url = await uploadGuardPhoto(file)
+      setFormData(prev => ({ ...prev, photoUrl: url }))
+      toast.success('Photo uploaded')
+    } catch (err: any) {
+      setPhotoPreview(null)
+      revokePreview(preview)
+      toast.error(err.message || 'Photo upload failed')
+    } finally {
+      setUploadingPhoto(false)
+      e.target.value = ''
+    }
   }
 
   const handleSaveGuard = async (e: React.FormEvent) => {
@@ -411,8 +430,16 @@ export default function GuardsPage() {
                       href={`/guards/${guard.id}`}
                       className="flex items-center gap-3.5 flex-1 min-w-0"
                     >
-                      <div className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs shrink-0 group-hover:bg-blue-50 group-hover:text-blue-600 dark:group-hover:bg-blue-950/40 dark:group-hover:text-blue-400 transition-colors">
-                        {guard.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs shrink-0 group-hover:bg-blue-50 group-hover:text-blue-600 dark:group-hover:bg-blue-950/40 dark:group-hover:text-blue-400 transition-colors flex items-center justify-center">
+                        {guard.photoUrl ? (
+                          <img
+                            src={guard.photoUrl}
+                            alt={guard.fullName}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          guard.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -602,6 +629,67 @@ export default function GuardsPage() {
               </div>
             )}
 
+            {/* Guard Photo - centered at top */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="relative">
+                {(photoPreview || formData.photoUrl) ? (
+                  <div className="w-24 h-24 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 relative">
+                    <img
+                      src={photoPreview || formData.photoUrl}
+                      alt="Guard photo preview"
+                      className="w-full h-full object-cover"
+                    />
+                    {uploadingPhoto && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <Loader2 className="h-6 w-6 text-white animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center">
+                    <User className="h-9 w-9 text-slate-400" />
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col items-center gap-1.5 w-full">
+                <Label htmlFor="photo" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                  Guard Photo
+                </Label>
+                <Input
+                  id="photo"
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                />
+                <Label
+                  htmlFor="photo"
+                  className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border text-xs font-semibold transition-colors ${
+                    uploadingPhoto
+                      ? 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                      : 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer'
+                  }`}
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  {uploadingPhoto ? 'Uploading...' : (photoPreview || formData.photoUrl) ? 'Change Photo' : 'Choose Photo'}
+                </Label>
+                <p className="text-[10px] text-slate-400 text-center">
+                  {uploadingPhoto ? 'Uploading photo...' : 'JPG, PNG or WebP. Photos are compressed and stored securely.'}
+                </p>
+                {formData.photoUrl && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setFormData(prev => ({ ...prev, photoUrl: '' })); setPhotoPreview(null) }}
+                    className="h-7 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                  >
+                    Remove Photo
+                  </Button>
+                )}
+              </div>
+            </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="fullName" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
                 Full Legal Name *
@@ -703,46 +791,6 @@ export default function GuardsPage() {
               <p className="text-[10px] text-slate-400">
                 Date when the guard started their duties
               </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="photo" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                Guard Photo
-              </Label>
-              <div className="flex items-start gap-3">
-                {formData.photoUrl && (
-                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0">
-                    <img
-                      src={formData.photoUrl}
-                      alt="Guard photo preview"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                )}
-                <div className="flex-1 space-y-2">
-                  <Input
-                    id="photo"
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoUpload}
-                    className="text-sm bg-slate-50 dark:bg-slate-800/80"
-                  />
-                  <p className="text-[10px] text-slate-400">
-                    For demo: images stored as base64. In production, use a proper image hosting service.
-                  </p>
-                  {formData.photoUrl && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setFormData(prev => ({ ...prev, photoUrl: '' }))}
-                      className="h-7 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                    >
-                      Remove Photo
-                    </Button>
-                  )}
-                </div>
-              </div>
             </div>
 
             <div className="space-y-1.5">

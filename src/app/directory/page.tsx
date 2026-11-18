@@ -34,10 +34,18 @@ import {
   AlertCircle,
   RefreshCw,
   Building2,
+  CheckCheck,
+  ArrowLeftRight,
 } from 'lucide-react'
 import { PortalNavbar } from '@/components/PortalNavbar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from '@/components/ui/toast'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface Guard {
   id: string
@@ -91,6 +99,13 @@ export default function GuardDirectoryPage() {
   const [assignmentsDraft, setAssignmentsDraft] = useState<Record<string, string>>({})
   const [modifiedGuards, setModifiedGuards] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
+
+  // Batch Multi-Select State
+  const [selectedGuardIds, setSelectedGuardIds] = useState<Set<string>>(new Set())
+  const [batchDutyPointId, setBatchDutyPointId] = useState<string>('')
+
+  // Guard Detail Drawer State
+  const [selectedGuardForDetail, setSelectedGuardForDetail] = useState<Guard | null>(null)
 
   // Initial Parallel Data Fetching
   useEffect(() => {
@@ -174,163 +189,6 @@ export default function GuardDirectoryPage() {
     return map
   }, [dailyAssignments])
 
-  // Quick date navigator helpers
-  const handleDateShift = (deltaDays: number) => {
-    const cur = new Date(selectedDate)
-    cur.setDate(cur.getDate() + deltaDays)
-    setSelectedDate(cur.toISOString().split('T')[0])
-  }
-
-  const setDatePreset = (preset: 'today' | 'yesterday' | 'tomorrow') => {
-    const d = new Date()
-    if (preset === 'yesterday') d.setDate(d.getDate() - 1)
-    if (preset === 'tomorrow') d.setDate(d.getDate() + 1)
-    setSelectedDate(d.toISOString().split('T')[0])
-  }
-
-  // Toggle Assign Mode & Initialize Draft
-  const toggleAssignMode = () => {
-    if (!assignMode) {
-      // Entering assign mode: build initial draft dictionary from current daily assignments
-      const draft: Record<string, string> = {}
-      dailyAssignments.forEach((a) => {
-        draft[a.guardId] = a.dutyPointId
-      })
-      setAssignmentsDraft(draft)
-      setModifiedGuards(new Set())
-    } else {
-      // Exiting assign mode: discard unsaved changes
-      setModifiedGuards(new Set())
-    }
-    setAssignMode(!assignMode)
-  }
-
-  // Update a single guard's assignment in draft
-  const updateAssignment = (guardId: string, dutyPointId: string) => {
-    setAssignmentsDraft((prev) => ({ ...prev, [guardId]: dutyPointId }))
-    setModifiedGuards((prev) => {
-      const next = new Set(prev)
-      next.add(guardId)
-      return next
-    })
-  }
-
-  // Auto-Fill Default Posts for guards who have a defaultDutyPoint
-  const autoAssignDefaults = () => {
-    let appliedCount = 0
-    const newDraft = { ...assignmentsDraft }
-    const newModified = new Set(modifiedGuards)
-
-    filteredGuards.forEach((guard) => {
-      // If guard has a default duty point and is currently unassigned in draft
-      if (guard.defaultDutyPointId && !newDraft[guard.id]) {
-        newDraft[guard.id] = guard.defaultDutyPointId
-        newModified.add(guard.id)
-        appliedCount++
-      }
-    })
-
-    setAssignmentsDraft(newDraft)
-    setModifiedGuards(newModified)
-
-    if (appliedCount > 0) {
-      toast.success(`Auto-assigned ${appliedCount} guards to their default duty posts!`)
-    } else {
-      toast.info('No additional guards with default posts to assign.')
-    }
-  }
-
-  // Find off duty duty point
-  const offDutyDp = useMemo(() => {
-    return dutyPoints.find(
-      (dp) => dp.id === 'off-duty' || dp.name.toLowerCase().includes('off duty') || dp.name.toLowerCase().includes('off day')
-    )
-  }, [dutyPoints])
-
-  // Sorted duty points prioritizing Off Duty & Outside Deployment at the top
-  const sortedDutyPoints = useMemo(() => {
-    return [...dutyPoints].sort((a, b) => {
-      const aOff = a.id === 'off-duty' || a.name.toLowerCase().includes('off duty')
-      const bOff = b.id === 'off-duty' || b.name.toLowerCase().includes('off duty')
-      if (aOff && !bOff) return -1
-      if (!aOff && bOff) return 1
-
-      const aOut = a.id === 'outside-deployment' || a.name.toLowerCase().includes('outside')
-      const bOut = b.id === 'outside-deployment' || b.name.toLowerCase().includes('outside')
-      if (aOut && !bOut) return -1
-      if (!aOut && bOut) return 1
-
-      return a.name.localeCompare(b.name)
-    })
-  }, [dutyPoints])
-
-  // Mark all unassigned guards on this roster as Off Duty with one click
-  const markAllUnassignedOffDuty = () => {
-    if (!offDutyDp) {
-      toast.error('Off Duty duty point not found')
-      return
-    }
-    let appliedCount = 0
-    const newDraft = { ...assignmentsDraft }
-    const newModified = new Set(modifiedGuards)
-
-    filteredGuards.forEach((guard) => {
-      if (!newDraft[guard.id] || newDraft[guard.id] === 'unassigned') {
-        newDraft[guard.id] = offDutyDp.id
-        newModified.add(guard.id)
-        appliedCount++
-      }
-    })
-
-    setAssignmentsDraft(newDraft)
-    setModifiedGuards(newModified)
-
-    if (appliedCount > 0) {
-      toast.success(`Marked ${appliedCount} unassigned guards as Off Duty!`)
-    } else {
-      toast.info('No unassigned guards to mark.')
-    }
-  }
-
-  // Save Assignments via Batch Transaction API
-  const saveAssignments = async () => {
-    if (modifiedGuards.size === 0) {
-      setAssignMode(false)
-      return
-    }
-
-    setSaving(true)
-    try {
-      // Construct batch array for only modified guards
-      const batchPayload = Array.from(modifiedGuards).map((guardId) => ({
-        guardId,
-        dutyPointId: assignmentsDraft[guardId] || '',
-        shiftId: selectedShift,
-        date: selectedDate,
-      }))
-
-      const res = await fetch('/api/daily-assignments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ batch: batchPayload }),
-      })
-
-      if (!res.ok) {
-        throw new Error('Server returned error while saving assignments')
-      }
-
-      await fetchDailyAssignments(true)
-      setAssignMode(false)
-      setModifiedGuards(new Set())
-      toast.success(`Successfully saved ${batchPayload.length} duty point assignments!`)
-    } catch (error) {
-      console.error('Error saving assignments:', error)
-      toast.error('Failed to save assignments. Please try again.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   // Filter Guards with Memoization
   const filteredGuards = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -368,6 +226,167 @@ export default function GuardDirectoryPage() {
     })
   }, [guards, searchQuery, assignMode, shifts, selectedShift, shiftTypeFilter, selectedDutyPointFilter, assignmentMap])
 
+  const isAllSelected = useMemo(() => {
+    return filteredGuards.length > 0 && filteredGuards.every((g) => selectedGuardIds.has(g.id))
+  }, [filteredGuards, selectedGuardIds])
+
+  // Quick date navigator helpers
+  const handleDateShift = useCallback((deltaDays: number) => {
+    const cur = new Date(selectedDate)
+    cur.setDate(cur.getDate() + deltaDays)
+    setSelectedDate(cur.toISOString().split('T')[0])
+  }, [selectedDate])
+
+  const setDatePreset = useCallback((preset: 'today' | 'yesterday' | 'tomorrow') => {
+    const d = new Date()
+    if (preset === 'yesterday') d.setDate(d.getDate() - 1)
+    if (preset === 'tomorrow') d.setDate(d.getDate() + 1)
+    setSelectedDate(d.toISOString().split('T')[0])
+  }, [])
+
+  // Toggle Assign Mode & Initialize Draft
+  const toggleAssignMode = useCallback(() => {
+    if (!assignMode) {
+      // Entering assign mode: build initial draft dictionary from current daily assignments
+      const draft: Record<string, string> = {}
+      dailyAssignments.forEach((a) => {
+        draft[a.guardId] = a.dutyPointId
+      })
+      setAssignmentsDraft(draft)
+      setModifiedGuards(new Set())
+    } else {
+      // Exiting assign mode: discard unsaved changes
+      setModifiedGuards(new Set())
+    }
+    setAssignMode(!assignMode)
+  }, [assignMode, dailyAssignments])
+
+  // Update a single guard's assignment in draft
+  const updateAssignment = useCallback((guardId: string, dutyPointId: string) => {
+    setAssignmentsDraft((prev) => ({ ...prev, [guardId]: dutyPointId }))
+    setModifiedGuards((prev) => {
+      const next = new Set(prev)
+      next.add(guardId)
+      return next
+    })
+  }, [])
+
+  // Auto-Fill Default Posts for guards who have a defaultDutyPoint
+  const autoAssignDefaults = useCallback(() => {
+    let appliedCount = 0
+    const newDraft = { ...assignmentsDraft }
+    const newModified = new Set(modifiedGuards)
+
+    filteredGuards.forEach((guard) => {
+      // If guard has a default duty point and is currently unassigned in draft
+      if (guard.defaultDutyPointId && !newDraft[guard.id]) {
+        newDraft[guard.id] = guard.defaultDutyPointId
+        newModified.add(guard.id)
+        appliedCount++
+      }
+    })
+
+    setAssignmentsDraft(newDraft)
+    setModifiedGuards(newModified)
+
+    if (appliedCount > 0) {
+      toast.success(`Auto-assigned ${appliedCount} guards to their default duty posts!`)
+    } else {
+      toast.info('No additional guards with default posts to assign.')
+    }
+  }, [assignmentsDraft, modifiedGuards, filteredGuards])
+
+  // Find off duty duty point
+  const offDutyDp = useMemo(() => {
+    return dutyPoints.find(
+      (dp) => dp.id === 'off-duty' || dp.name.toLowerCase().includes('off duty') || dp.name.toLowerCase().includes('off day')
+    )
+  }, [dutyPoints])
+
+  // Sorted duty points prioritizing Off Duty & Outside Deployment at the top
+  const sortedDutyPoints = useMemo(() => {
+    return [...dutyPoints].sort((a, b) => {
+      const aOff = a.id === 'off-duty' || a.name.toLowerCase().includes('off duty')
+      const bOff = b.id === 'off-duty' || b.name.toLowerCase().includes('off duty')
+      if (aOff && !bOff) return -1
+      if (!aOff && bOff) return 1
+
+      const aOut = a.id === 'outside-deployment' || a.name.toLowerCase().includes('outside')
+      const bOut = b.id === 'outside-deployment' || b.name.toLowerCase().includes('outside')
+      if (aOut && !bOut) return -1
+      if (!aOut && bOut) return 1
+
+      return a.name.localeCompare(b.name)
+    })
+  }, [dutyPoints])
+
+  // Mark all unassigned guards on this roster as Off Duty with one click
+  const markAllUnassignedOffDuty = useCallback(() => {
+    if (!offDutyDp) {
+      toast.error('Off Duty duty point not found')
+      return
+    }
+    let appliedCount = 0
+    const newDraft = { ...assignmentsDraft }
+    const newModified = new Set(modifiedGuards)
+
+    filteredGuards.forEach((guard) => {
+      if (!newDraft[guard.id] || newDraft[guard.id] === 'unassigned') {
+        newDraft[guard.id] = offDutyDp.id
+        newModified.add(guard.id)
+        appliedCount++
+      }
+    })
+
+    setAssignmentsDraft(newDraft)
+    setModifiedGuards(newModified)
+
+    if (appliedCount > 0) {
+      toast.success(`Marked ${appliedCount} unassigned guards as Off Duty!`)
+    } else {
+      toast.info('No unassigned guards to mark.')
+    }
+  }, [offDutyDp, assignmentsDraft, modifiedGuards, filteredGuards])
+
+  // Save Assignments via Batch Transaction API
+  const saveAssignments = useCallback(async () => {
+    if (modifiedGuards.size === 0) {
+      setAssignMode(false)
+      return
+    }
+
+    setSaving(true)
+    try {
+      // Construct batch array for only modified guards
+      const batchPayload = Array.from(modifiedGuards).map((guardId) => ({
+        guardId,
+        dutyPointId: assignmentsDraft[guardId] || '',
+        shiftId: selectedShift,
+        date: selectedDate,
+      }))
+
+      const res = await fetch('/api/daily-assignments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batch: batchPayload }),
+      })
+
+      if (!res.ok) {
+        throw new Error('Server returned error while saving assignments')
+      }
+
+      await fetchDailyAssignments(true)
+      setAssignMode(false)
+      setModifiedGuards(new Set())
+      toast.success(`Successfully saved ${batchPayload.length} duty point assignments!`)
+    } catch (error) {
+      console.error('Error saving assignments:', error)
+      toast.error('Failed to save assignments. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }, [modifiedGuards, assignmentsDraft, selectedShift, selectedDate, fetchDailyAssignments])
+
   // KPI Statistics
   const stats = useMemo(() => {
     const dayGuards = guards.filter((g) => g.shiftType === 'DAY' || g.shiftType === 'BOTH').length
@@ -392,7 +411,7 @@ export default function GuardDirectoryPage() {
   }, [guards, filteredGuards.length, dailyAssignments])
 
   // CSV Export
-  const exportCSV = () => {
+  const exportCSV = useCallback(() => {
     const headers = ['Guard Name', 'Badge ID', 'Phone', 'Shift Type', 'Assigned Duty Point', 'Default Duty Point', 'Start Date']
     const rows = filteredGuards.map((g) => {
       const assigned = assignmentMap.get(g.id)?.dutyPointName || 'Unassigned'
@@ -418,18 +437,18 @@ export default function GuardDirectoryPage() {
     a.download = `pcc-guard-directory-${selectedDate}.csv`
     a.click()
     window.URL.revokeObjectURL(url)
-  }
+  }, [filteredGuards, assignmentMap, selectedDate])
 
   // Print handler
-  const handlePrint = () => {
+  const handlePrint = useCallback(() => {
     window.print()
-  }
+  }, [])
 
-  const selectedShiftObj = shifts.find((s) => s.id === selectedShift)
-  const isDayShift = selectedShiftObj?.name.toLowerCase().includes('day') ?? true
+  const selectedShiftObj = useMemo(() => shifts.find((s) => s.id === selectedShift), [shifts, selectedShift])
+  const isDayShift = useMemo(() => selectedShiftObj?.name.toLowerCase().includes('day') ?? true, [selectedShiftObj])
 
   // Get initials for fallback avatar
-  const getInitials = (name: string) => {
+  const getInitials = useCallback((name: string) => {
     return name
       .split(' ')
       .filter(Boolean)
@@ -437,6 +456,176 @@ export default function GuardDirectoryPage() {
       .slice(0, 2)
       .join('')
       .toUpperCase()
+  }, [])
+
+  // Batch Multi-Select Handlers
+  const toggleGuardSelection = useCallback((guardId: string) => {
+    setSelectedGuardIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(guardId)) {
+        next.delete(guardId)
+      } else {
+        next.add(guardId)
+      }
+      return next
+    })
+  }, [])
+
+  const toggleSelectAll = useCallback(() => {
+    if (isAllSelected) {
+      setSelectedGuardIds(new Set())
+    } else {
+      setSelectedGuardIds(new Set(filteredGuards.map((g) => g.id)))
+    }
+  }, [isAllSelected, filteredGuards])
+
+  const selectAllFiltered = useCallback(() => {
+    setSelectedGuardIds(new Set(filteredGuards.map((g) => g.id)))
+  }, [filteredGuards])
+
+  const selectUnassignedFiltered = useCallback(() => {
+    const unassignedIds = new Set<string>()
+    filteredGuards.forEach((g) => {
+      const assigned = assignMode
+        ? assignmentsDraft[g.id]
+        : assignmentMap.get(g.id)?.dutyPointId
+      if (!assigned || assigned === 'unassigned') {
+        unassignedIds.add(g.id)
+      }
+    })
+    setSelectedGuardIds(unassignedIds)
+    if (unassignedIds.size === 0) {
+      toast.info('No unassigned guards in the current view.')
+    } else {
+      toast.info(`Selected ${unassignedIds.size} unassigned guards.`)
+    }
+  }, [filteredGuards, assignMode, assignmentsDraft, assignmentMap])
+
+  const clearSelection = useCallback(() => {
+    setSelectedGuardIds(new Set())
+  }, [])
+
+  const applyBatchAssignment = useCallback(() => {
+    if (!batchDutyPointId || selectedGuardIds.size === 0) return
+
+    // Ensure assignMode is enabled so user can see and save changes
+    if (!assignMode) {
+      const draft: Record<string, string> = {}
+      dailyAssignments.forEach((a) => {
+        draft[a.guardId] = a.dutyPointId
+      })
+      setAssignmentsDraft(draft)
+      setAssignMode(true)
+    }
+
+    const newDraft = { ...assignmentsDraft }
+    const newModified = new Set(modifiedGuards)
+    const targetPoint = sortedDutyPoints.find((dp) => dp.id === batchDutyPointId)
+    const targetName = batchDutyPointId === 'unassigned' ? 'Unassigned' : (targetPoint?.name || 'Selected Post')
+
+    selectedGuardIds.forEach((guardId) => {
+      newDraft[guardId] = batchDutyPointId
+      newModified.add(guardId)
+    })
+
+    setAssignmentsDraft(newDraft)
+    setModifiedGuards(newModified)
+    toast.success(`Assigned ${selectedGuardIds.size} guards to "${targetName}". Click Save Changes to confirm!`)
+    setSelectedGuardIds(new Set())
+  }, [batchDutyPointId, selectedGuardIds, assignMode, dailyAssignments, assignmentsDraft, modifiedGuards, sortedDutyPoints])
+
+  const applyBatchOffDuty = useCallback(() => {
+    if (!offDutyDp || selectedGuardIds.size === 0) return
+
+    if (!assignMode) {
+      const draft: Record<string, string> = {}
+      dailyAssignments.forEach((a) => {
+        draft[a.guardId] = a.dutyPointId
+      })
+      setAssignmentsDraft(draft)
+      setAssignMode(true)
+    }
+
+    const newDraft = { ...assignmentsDraft }
+    const newModified = new Set(modifiedGuards)
+
+    selectedGuardIds.forEach((guardId) => {
+      newDraft[guardId] = offDutyDp.id
+      newModified.add(guardId)
+    })
+
+    setAssignmentsDraft(newDraft)
+    setModifiedGuards(newModified)
+    toast.success(`Marked ${selectedGuardIds.size} guards as Off Duty. Click Save Changes to confirm!`)
+    setSelectedGuardIds(new Set())
+  }, [offDutyDp, selectedGuardIds, assignMode, dailyAssignments, assignmentsDraft, modifiedGuards])
+
+  // Swap duty points between exactly 2 selected guards
+  const swapPosts = useCallback(() => {
+    if (selectedGuardIds.size !== 2) {
+      toast.error('Please select exactly 2 guards to swap their posts')
+      return
+    }
+
+    const guardIds = Array.from(selectedGuardIds)
+    const [guardId1, guardId2] = guardIds
+
+    // Get current assignments for both guards
+    const assignment1 = assignMode
+      ? assignmentsDraft[guardId1] || assignmentMap.get(guardId1)?.dutyPointId
+      : assignmentMap.get(guardId1)?.dutyPointId
+    const assignment2 = assignMode
+      ? assignmentsDraft[guardId2] || assignmentMap.get(guardId2)?.dutyPointId
+      : assignmentMap.get(guardId2)?.dutyPointId
+
+    // If either guard is unassigned, can't swap
+    if (!assignment1 || !assignment2 || assignment1 === 'unassigned' || assignment2 === 'unassigned') {
+      toast.error('Both guards must have assigned duty points to swap')
+      return
+    }
+
+    // Ensure assignMode is enabled
+    if (!assignMode) {
+      const draft: Record<string, string> = {}
+      dailyAssignments.forEach((a) => {
+        draft[a.guardId] = a.dutyPointId
+      })
+      setAssignmentsDraft(draft)
+      setAssignMode(true)
+    }
+
+    // Swap the assignments
+    const newDraft = { ...assignmentsDraft }
+    const newModified = new Set(modifiedGuards)
+
+    newDraft[guardId1] = assignment2
+    newDraft[guardId2] = assignment1
+    newModified.add(guardId1)
+    newModified.add(guardId2)
+
+    setAssignmentsDraft(newDraft)
+    setModifiedGuards(newModified)
+    setSelectedGuardIds(new Set())
+
+    // Get guard names for the success message
+    const guard1 = guards.find((g) => g.id === guardId1)
+    const guard2 = guards.find((g) => g.id === guardId2)
+    const point1 = sortedDutyPoints.find((dp) => dp.id === assignment1)
+    const point2 = sortedDutyPoints.find((dp) => dp.id === assignment2)
+
+    toast.success(
+      `Swapped posts: ${guard1?.fullName || 'Guard 1'} ↔ ${guard2?.fullName || 'Guard 2'}. Click Save Changes to confirm!`
+    )
+  }, [selectedGuardIds, assignMode, assignmentsDraft, assignmentMap, dailyAssignments, modifiedGuards, guards, sortedDutyPoints])
+
+  // Get recent assignment history for a guard (last 7 days)
+  const getGuardRecentHistory = (guardId: string) => {
+    // This would ideally come from an API, but for now we'll use current assignment
+    const current = assignmentMap.get(guardId)
+    return {
+      currentPost: current?.dutyPointName || 'Unassigned',
+      defaultPost: guards.find((g) => g.id === guardId)?.defaultDutyPoint?.name || 'None',
+    }
   }
 
   return (
@@ -477,7 +666,7 @@ export default function GuardDirectoryPage() {
           <div className="text-right text-xs">
             <p className="font-bold text-sm">DATE: {new Date(selectedDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
             <p className="font-semibold text-slate-700">SHIFT: {selectedShiftObj?.name || 'Selected Shift'}</p>
-            <p className="text-slate-500 text-[10px] mt-1">Printed: {new Date().toLocaleString()}</p>
+            <p className="text-slate-500 text-[10px] mt-1" suppressHydrationWarning>Printed: {new Date().toLocaleString()}</p>
           </div>
         </div>
       </div>
@@ -510,6 +699,17 @@ export default function GuardDirectoryPage() {
               <Shield className="w-3.5 h-3.5" />
               <span>{assignMode ? 'Exit Assign Mode' : '⚡ Assign Mode'}</span>
             </Button>
+            {selectedGuardIds.size === 2 && (
+              <Button
+                onClick={swapPosts}
+                variant="default"
+                size="sm"
+                className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold gap-1.5 shadow-xs"
+              >
+                <ArrowLeftRight className="w-3.5 h-3.5" />
+                <span>Swap Posts</span>
+              </Button>
+            )}
             <Button
               onClick={exportCSV}
               variant="secondary"
@@ -542,6 +742,11 @@ export default function GuardDirectoryPage() {
                 <p className="font-bold">Assign Mode Active ({selectedShiftObj?.name || 'Selected Shift'})</p>
                 <p className="text-amber-700 dark:text-amber-300">
                   Select a duty point dropdown for any guard below, then click &ldquo;Save Assignments&rdquo;.
+                  {selectedGuardIds.size === 2 && (
+                    <span className="ml-2 font-semibold text-purple-700 dark:text-purple-300">
+                      💡 Select 2 guards to swap their posts instantly!
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -732,56 +937,101 @@ export default function GuardDirectoryPage() {
               </div>
             </div>
 
-            {/* Sub-toolbar: Duty point quick filter & View switcher */}
+            {/* Sub-toolbar: Duty point quick filter, Batch Selection helpers & View switcher */}
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-500 font-medium mr-1">Filter Post:</span>
-                <Select
-                  value={selectedDutyPointFilter}
-                  onValueChange={setSelectedDutyPointFilter}
-                >
-                  <SelectTrigger className="h-8 text-xs bg-slate-50 dark:bg-slate-800/60 w-44">
-                    <SelectValue placeholder="All Posts" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All Posts</SelectItem>
-                    <SelectItem value="UNASSIGNED">Unassigned Only</SelectItem>
-                    {dutyPoints.map((dp) => (
-                      <SelectItem key={dp.id} value={dp.name} className="text-xs">
-                        {dp.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <span className="text-[11px] text-slate-400 ml-2">
-                  Showing {filteredGuards.length} of {guards.length} guards
-                </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-500 font-medium mr-1">Filter Post:</span>
+                  <Select
+                    value={selectedDutyPointFilter}
+                    onValueChange={setSelectedDutyPointFilter}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-slate-50 dark:bg-slate-800/60 w-44">
+                      <SelectValue placeholder="All Posts" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Posts</SelectItem>
+                      <SelectItem value="UNASSIGNED">Unassigned Only</SelectItem>
+                      {dutyPoints.map((dp) => (
+                        <SelectItem key={dp.id} value={dp.name} className="text-xs">
+                          {dp.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Quick Selection Buttons */}
+                <div className="flex items-center gap-1 border-l border-slate-200 dark:border-slate-700 pl-2">
+                  <button
+                    onClick={toggleSelectAll}
+                    className="px-2 py-1 rounded-md text-[11px] font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    {isAllSelected ? 'Deselect All' : `Select All (${filteredGuards.length})`}
+                  </button>
+                  <button
+                    onClick={selectUnassignedFiltered}
+                    className="px-2 py-1 rounded-md text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    Select Unassigned
+                  </button>
+                  {selectedGuardIds.size === 2 && (
+                    <button
+                      onClick={swapPosts}
+                      className="px-2 py-1 rounded-md text-[11px] font-semibold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 hover:bg-purple-200 dark:hover:bg-purple-900/60 transition-colors flex items-center gap-1"
+                      title="Swap duty points between the 2 selected guards"
+                    >
+                      <ArrowLeftRight className="w-3 h-3" />
+                      Swap Posts
+                    </button>
+                  )}
+                  {selectedGuardIds.size > 0 && (
+                    <button
+                      onClick={clearSelection}
+                      className="px-2 py-1 rounded-md text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      Clear ({selectedGuardIds.size})
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* Grid / Table Toggle */}
-              <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 ml-auto">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`p-1.5 rounded-md transition-all ${
-                    viewMode === 'grid'
-                      ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
-                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                  title="Grid Card View"
-                >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => setViewMode('table')}
-                  className={`p-1.5 rounded-md transition-all ${
-                    viewMode === 'table'
-                      ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
-                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                  title="Compact Table View"
-                >
-                  <List className="w-3.5 h-3.5" />
-                </button>
+              {/* Grid / Table Toggle & Count */}
+              <div className="flex items-center gap-2.5 ml-auto">
+                <span className="text-[11px] text-slate-400">
+                  {selectedGuardIds.size > 0 ? (
+                    <span className="font-semibold text-blue-600 dark:text-blue-400">
+                      {selectedGuardIds.size} of {filteredGuards.length} selected
+                    </span>
+                  ) : (
+                    `Showing ${filteredGuards.length} of ${guards.length} guards`
+                  )}
+                </span>
+
+                <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800">
+                  <button
+                    onClick={() => setViewMode('grid')}
+                    className={`p-1.5 rounded-md transition-all ${
+                      viewMode === 'grid'
+                        ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                    title="Grid Card View"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode('table')}
+                    className={`p-1.5 rounded-md transition-all ${
+                      viewMode === 'table'
+                        ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                    title="Compact Table View"
+                  >
+                    <List className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -893,7 +1143,16 @@ export default function GuardDirectoryPage() {
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-800/70 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider">
                   <tr>
-                    <th className="py-3 px-4">#</th>
+                    <th className="py-3 px-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 rounded text-blue-600 border-slate-300 dark:border-slate-700 focus:ring-blue-500 cursor-pointer"
+                        title={isAllSelected ? 'Deselect all' : 'Select all'}
+                      />
+                    </th>
+                    <th className="py-3 px-3">#</th>
                     <th className="py-3 px-4">Duty Point (Today)</th>
                     <th className="py-3 px-4">Guard Personnel</th>
                     <th className="py-3 px-4">Badge ID</th>
@@ -907,15 +1166,28 @@ export default function GuardDirectoryPage() {
                     const assignedInfo = assignmentMap.get(guard.id)
                     const isModified = modifiedGuards.has(guard.id)
                     const currentDraftVal = assignmentsDraft[guard.id] ?? assignedInfo?.dutyPointId ?? ''
+                    const isSelected = selectedGuardIds.has(guard.id)
 
                     return (
                       <tr
                         key={guard.id}
                         className={`hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors ${
-                          isModified ? 'bg-amber-50/40 dark:bg-amber-950/20' : ''
+                          isSelected
+                            ? 'bg-blue-50/70 dark:bg-blue-950/40'
+                            : isModified
+                            ? 'bg-amber-50/40 dark:bg-amber-950/20'
+                            : ''
                         }`}
                       >
-                        <td className="py-3 px-4 font-mono text-slate-400">{index + 1}</td>
+                        <td className="py-3 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleGuardSelection(guard.id)}
+                            className="w-4 h-4 rounded text-blue-600 border-slate-300 dark:border-slate-700 focus:ring-blue-500 cursor-pointer"
+                          />
+                        </td>
+                        <td className="py-3 px-3 font-mono text-slate-400">{index + 1}</td>
                         <td className="py-3 px-4">
                           {assignMode ? (
                             <div className="flex items-center gap-1.5">
@@ -1068,19 +1340,35 @@ export default function GuardDirectoryPage() {
               const assignedInfo = assignmentMap.get(guard.id)
               const isModified = modifiedGuards.has(guard.id)
               const currentDraftVal = assignmentsDraft[guard.id] ?? assignedInfo?.dutyPointId ?? ''
+              const isSelected = selectedGuardIds.has(guard.id)
 
               return (
                 <Card
                   key={guard.id}
                   className={`group border shadow-xs hover:shadow-md transition-all duration-200 bg-white dark:bg-slate-900/90 rounded-2xl overflow-hidden flex flex-col justify-between ${
-                    isModified
+                    isSelected
+                      ? 'border-blue-500 ring-2 ring-blue-500/50 bg-blue-50/20 dark:bg-blue-950/25'
+                      : isModified
                       ? 'border-amber-400 ring-2 ring-amber-300/40 dark:border-amber-600 dark:ring-amber-800/40'
                       : 'border-slate-200/80 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600'
                   }`}
                 >
                   <CardContent className="p-4 space-y-3.5 flex-1 flex flex-col justify-between">
-                    {/* Top Duty Point Badge or Selector */}
-                    <div className="text-center">
+                    {/* Top Duty Point Badge or Selector with Checkbox */}
+                    <div className="flex items-center gap-2">
+                      <label
+                        className="flex items-center justify-center p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0"
+                        title={isSelected ? 'Deselect guard' : 'Select guard for batch action'}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleGuardSelection(guard.id)}
+                          className="w-4 h-4 rounded text-blue-600 border-slate-300 dark:border-slate-700 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </label>
+
+                      <div className="flex-1 min-w-0 text-center">
                       {assignMode ? (
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-1.5">
@@ -1171,10 +1459,15 @@ export default function GuardDirectoryPage() {
                         </div>
                       )}
                     </div>
+                  </div>
 
-                    {/* Guard Photo or Initials Avatar */}
+                    {/* Guard Photo or Initials Avatar - Clickable for details */}
                     <div className="flex justify-center my-1">
-                      <div className="relative w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 border-2 border-slate-200 dark:border-slate-700 shadow-xs group-hover:scale-105 transition-transform duration-200 flex items-center justify-center">
+                      <button
+                        onClick={() => setSelectedGuardForDetail(guard)}
+                        className="relative w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 border-2 border-slate-200 dark:border-slate-700 shadow-xs group-hover:scale-105 transition-transform duration-200 flex items-center justify-center cursor-pointer hover:border-blue-400 dark:hover:border-blue-600"
+                        title="Click to view guard details"
+                      >
                         {guard.photoUrl ? (
                           <img
                             src={guard.photoUrl}
@@ -1186,7 +1479,7 @@ export default function GuardDirectoryPage() {
                             {getInitials(guard.fullName)}
                           </span>
                         )}
-                      </div>
+                      </button>
                     </div>
 
                     {/* Name and Badge ID */}
@@ -1257,7 +1550,180 @@ export default function GuardDirectoryPage() {
           </div>
         )}
 
-        {/* Floating Dock during Assign Mode */}
+        {/* Floating Dock: Multi-Select Batch Actions or Assign Mode */}
+        {selectedGuardIds.size > 0 && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-full max-w-2xl px-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="bg-slate-900 text-white rounded-2xl p-3 px-4 sm:px-5 shadow-2xl border border-slate-700/90 backdrop-blur-md flex flex-wrap items-center justify-between gap-3">
+              {/* Selected Count & Clear */}
+              <div className="flex items-center gap-2">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-xs font-bold text-white shadow-xs">
+                  {selectedGuardIds.size}
+                </span>
+                <span className="text-xs font-bold text-white">
+                  {selectedGuardIds.size === 1 ? 'Guard' : 'Guards'} Selected
+                </span>
+                <button
+                  onClick={clearSelection}
+                  className="text-[11px] text-slate-400 hover:text-white underline ml-1 cursor-pointer"
+                >
+                  Deselect
+                </button>
+              </div>
+
+              {/* Action Controls */}
+              <div className="flex items-center gap-2 ml-auto flex-wrap sm:flex-nowrap">
+                <Select value={batchDutyPointId} onValueChange={setBatchDutyPointId}>
+                  <SelectTrigger className="h-8 text-xs bg-slate-800 border-slate-700 text-white min-w-[160px] max-w-[200px]">
+                    <SelectValue placeholder="Choose duty post..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">-- Clear Assignment --</SelectItem>
+                    {sortedDutyPoints.map((dp) => (
+                      <SelectItem key={dp.id} value={dp.id} className="text-xs">
+                        {dp.id === 'off-duty' || dp.name.toLowerCase().includes('off duty')
+                          ? `🌙 ${dp.name}`
+                          : dp.id === 'outside-deployment' || dp.name.toLowerCase().includes('outside')
+                          ? `🌐 ${dp.name}`
+                          : dp.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  size="sm"
+                  disabled={!batchDutyPointId}
+                  onClick={applyBatchAssignment}
+                  className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold gap-1 px-3 shadow-xs"
+                >
+                  <CheckCheck className="w-3.5 h-3.5" />
+                  <span>Assign</span>
+                </Button>
+
+                {offDutyDp && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={applyBatchOffDuty}
+                    className="h-8 text-xs border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold gap-1 px-2.5"
+                    title="Mark all selected guards as Off Duty"
+                  >
+                    <Moon className="w-3.5 h-3.5 text-blue-300" />
+                    <span>Off Duty</span>
+                  </Button>
+                )}
+
+                {modifiedGuards.size > 0 && (
+                  <Button
+                    size="sm"
+                    onClick={saveAssignments}
+                    disabled={saving}
+                    className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1 px-3 shadow-md ml-1"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Save ({modifiedGuards.size})</span>
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Guard Detail Drawer/Dialog */}
+        <Dialog open={!!selectedGuardForDetail} onOpenChange={(open) => !open && setSelectedGuardForDetail(null)}>
+          <DialogContent className="max-w-md">
+            {selectedGuardForDetail && (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                      {selectedGuardForDetail.photoUrl ? (
+                        <img
+                          src={selectedGuardForDetail.photoUrl}
+                          alt={selectedGuardForDetail.fullName}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="font-bold text-sm text-slate-600 dark:text-slate-300 tracking-wider">
+                          {getInitials(selectedGuardForDetail.fullName)}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                        {selectedGuardForDetail.fullName}
+                      </h3>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 font-mono">
+                        {selectedGuardForDetail.badgeId}
+                      </p>
+                    </div>
+                  </DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4 mt-4">
+                  {/* Contact Information */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Contact Information</h4>
+                    <div className="space-y-2">
+                      {selectedGuardForDetail.phone ? (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Phone className="w-4 h-4 text-emerald-600" />
+                          <a
+                            href={`tel:${selectedGuardForDetail.phone}`}
+                            className="text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 font-mono"
+                          >
+                            {selectedGuardForDetail.phone}
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-slate-400 italic">No phone on file</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Assignment Information */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Assignment Information</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500 dark:text-slate-400">Shift Type:</span>
+                        <span className="font-medium text-slate-900 dark:text-white">
+                          {selectedGuardForDetail.shiftType === 'DAY' ? 'Day Shift' : selectedGuardForDetail.shiftType === 'NIGHT' ? 'Night Shift' : 'Both Shifts'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500 dark:text-slate-400">Default Post:</span>
+                        <span className="font-medium text-slate-900 dark:text-white">
+                          {selectedGuardForDetail.defaultDutyPoint?.name || 'None'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500 dark:text-slate-400">Current Post:</span>
+                        <span className="font-medium text-slate-900 dark:text-white">
+                          {getGuardRecentHistory(selectedGuardForDetail.id).currentPost}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Employment Information */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Employment Information</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500 dark:text-slate-400">Start Date:</span>
+                        <span className="font-medium text-slate-900 dark:text-white">
+                          {selectedGuardForDetail.startDate ? new Date(selectedGuardForDetail.startDate).toLocaleDateString() : 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+
         {assignMode && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white rounded-2xl p-3 px-5 shadow-2xl border border-slate-700 flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
             <div className="flex items-center gap-2">

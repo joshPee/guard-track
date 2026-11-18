@@ -7,12 +7,12 @@ import { z } from 'zod'
 const guardUpdateSchema = z.object({
   fullName: z.string().min(1).optional(),
   badgeId: z.string().min(1).optional(),
-  phone: z.string().optional(),
-  defaultDutyPointId: z.string().optional(),
-  photoUrl: z.string().optional(),
+  phone: z.string().nullish(),
+  defaultDutyPointId: z.string().nullish(),
+  photoUrl: z.string().nullish(),
   shiftType: z.enum(['DAY', 'NIGHT', 'BOTH']).optional(),
   status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
-  startDate: z.string().optional(),
+  startDate: z.string().nullish(),
 })
 
 export async function GET(
@@ -56,9 +56,13 @@ export async function PUT(
     const body = await req.json()
     const validatedData = guardUpdateSchema.parse(body)
 
-    const data: any = { ...validatedData }
-    if (validatedData.startDate) {
-      data.startDate = new Date(validatedData.startDate)
+    // Normalize empty strings to null for nullable columns
+    const data: any = {}
+    for (const [key, value] of Object.entries(validatedData)) {
+      data[key] = value === '' ? null : value
+    }
+    if (data.startDate) {
+      data.startDate = new Date(data.startDate)
     }
 
     const guard = await prisma.guard.update({
@@ -69,7 +73,8 @@ export async function PUT(
     return NextResponse.json(guard)
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid data', details: error.errors }, { status: 400 })
+      const msg = error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; ')
+      return NextResponse.json({ error: `Invalid data (${msg})`, details: error.errors }, { status: 400 })
     }
     console.error('Error updating guard:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

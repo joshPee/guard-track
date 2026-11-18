@@ -58,7 +58,7 @@ export function DashboardTopBar() {
             <div className="lg:hidden shrink-0 w-8 h-8 rounded-lg bg-white p-1 shadow-xs border border-slate-200/80 flex items-center justify-center">
               <img src="/pcc.png" alt="PCC Logo" className="w-full h-full object-contain" />
             </div>
-            <h2 className="text-sm md:text-base font-semibold text-slate-800 dark:text-slate-100">{getTimeBasedGreeting()}</h2>
+            <h2 className="text-sm md:text-base font-semibold text-slate-800 dark:text-slate-100" suppressHydrationWarning>{getTimeBasedGreeting()}</h2>
           </div>
         </div>
 
