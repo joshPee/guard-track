@@ -98,6 +98,7 @@ async function main() {
     { name: 'Staff Quarters', zoneId: zone1.id },
     { name: 'Water Storage', zoneId: zone3.id },
     { name: "Center Manager's Quarters", zoneId: zone1.id },
+    { name: 'Outside Deployment', zoneId: zone1.id },
   ]
 
   for (const dp of dutyPoints) {
