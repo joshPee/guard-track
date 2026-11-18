@@ -171,12 +171,26 @@ export default function AssignmentsPortalPage() {
   const stats = useMemo(() => {
     const dayCount = dailyAssignments.filter((a) => a.guard.shiftType === 'DAY').length
     const nightCount = dailyAssignments.filter((a) => a.guard.shiftType === 'NIGHT').length
-    const pointsCount = new Set(dailyAssignments.map((a) => a.dutyPoint.name)).size
+    const offDutyCount = dailyAssignments.filter((a) =>
+      a.dutyPoint.name.toLowerCase().includes('off duty') || a.dutyPoint.name.toLowerCase().includes('off day')
+    ).length
+    const outsideCount = dailyAssignments.filter((a) =>
+      a.dutyPoint.name.toLowerCase().includes('outside deployment') || a.dutyPoint.name.toLowerCase().includes('outside')
+    ).length
+    const campusCount = Math.max(0, dailyAssignments.length - offDutyCount - outsideCount)
+    const pointsCount = new Set(
+      dailyAssignments
+        .filter((a) => !a.dutyPoint.name.toLowerCase().includes('off duty'))
+        .map((a) => a.dutyPoint.name)
+    ).size
     return {
       total: dailyAssignments.length,
       filtered: filteredAssignments.length,
       dayCount,
       nightCount,
+      offDutyCount,
+      outsideCount,
+      campusCount,
       pointsCount,
     }
   }, [dailyAssignments, filteredAssignments.length])
@@ -479,43 +493,43 @@ export default function AssignmentsPortalPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:grid-cols-4">
           <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
             <CardContent className="p-3.5 text-center">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Assigned Personnel</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Assigned</p>
               <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
                 {stats.total}
               </p>
               <p className="text-[10px] text-slate-400 mt-0.5">
-                {stats.filtered !== stats.total ? `Showing ${stats.filtered}` : 'Active deployment'}
+                {stats.filtered !== stats.total ? `Showing ${stats.filtered}` : 'Daily roster count'}
               </p>
             </CardContent>
           </Card>
 
           <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
             <CardContent className="p-3.5 text-center">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Day Shift Guards</p>
-              <p className="text-2xl font-black text-blue-600 dark:text-blue-400 tracking-tight mt-0.5">
-                {stats.dayCount}
-              </p>
-              <p className="text-[10px] text-blue-500/80 dark:text-blue-400/80 mt-0.5">06:00 - 18:00</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
-            <CardContent className="p-3.5 text-center">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Night Shift Guards</p>
-              <p className="text-2xl font-black text-purple-600 dark:text-purple-400 tracking-tight mt-0.5">
-                {stats.nightCount}
-              </p>
-              <p className="text-[10px] text-purple-500/80 dark:text-purple-400/80 mt-0.5">18:00 - 06:00</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
-            <CardContent className="p-3.5 text-center">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Duty Points Manned</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Campus Posts</p>
               <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight mt-0.5">
-                {stats.pointsCount}
+                {stats.campusCount}
               </p>
-              <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">Campus posts</p>
+              <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">{stats.pointsCount} duty points</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
+            <CardContent className="p-3.5 text-center">
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Outside Deployed</p>
+              <p className="text-2xl font-black text-blue-600 dark:text-blue-400 tracking-tight mt-0.5">
+                {stats.outsideCount}
+              </p>
+              <p className="text-[10px] text-blue-500/80 dark:text-blue-400/80 mt-0.5">External deployment</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
+            <CardContent className="p-3.5 text-center">
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Off Duty</p>
+              <p className="text-2xl font-black text-slate-700 dark:text-slate-300 tracking-tight mt-0.5">
+                {stats.offDutyCount}
+              </p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Scheduled day off</p>
             </CardContent>
           </Card>
         </div>
@@ -584,12 +598,41 @@ export default function AssignmentsPortalPage() {
                 <CardContent className="p-4 space-y-3.5 flex-1 flex flex-col justify-between">
                   {/* Top Duty Point Highlight */}
                   <div className="text-center">
-                    <div className="w-full inline-flex items-center justify-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/80 px-3 py-1.5 rounded-xl shadow-2xs">
-                      <MapPin className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      <span className="font-bold text-xs text-emerald-800 dark:text-emerald-300 truncate max-w-[200px]">
-                        {assignment.dutyPoint.name}
-                      </span>
-                    </div>
+                    {(() => {
+                      const isOffDuty = assignment.dutyPoint.name.toLowerCase().includes('off duty') || assignment.dutyPoint.name.toLowerCase().includes('off day')
+                      const isOutside = assignment.dutyPoint.name.toLowerCase().includes('outside deployment') || assignment.dutyPoint.name.toLowerCase().includes('outside')
+
+                      if (isOffDuty) {
+                        return (
+                          <div className="w-full inline-flex items-center justify-center gap-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-1.5 rounded-xl shadow-2xs text-slate-700 dark:text-slate-300">
+                            <Moon className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                            <span className="font-bold text-xs truncate max-w-[200px]">
+                              Off Duty (Day Off)
+                            </span>
+                          </div>
+                        )
+                      }
+
+                      if (isOutside) {
+                        return (
+                          <div className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/80 px-3 py-1.5 rounded-xl shadow-2xs text-blue-800 dark:text-blue-300">
+                            <Building2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                            <span className="font-bold text-xs truncate max-w-[200px]">
+                              Outside Deployment
+                            </span>
+                          </div>
+                        )
+                      }
+
+                      return (
+                        <div className="w-full inline-flex items-center justify-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/80 px-3 py-1.5 rounded-xl shadow-2xs">
+                          <MapPin className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          <span className="font-bold text-xs text-emerald-800 dark:text-emerald-300 truncate max-w-[200px]">
+                            {assignment.dutyPoint.name}
+                          </span>
+                        </div>
+                      )
+                    })()}
                   </div>
 
                   {/* Guard Photo or Initials Avatar */}

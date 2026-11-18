@@ -163,6 +163,8 @@ export default function AttendancePage() {
           const existing = records.find((r: any) => r.guardId === guard.id)
           // Priority: daily assignment > existing record > default > first duty point
           const dutyPointId = assignmentMap[guard.id] || existing?.dutyPointId || guard.defaultDutyPoint?.id || dutyPoints[0]?.id || ''
+          const assignedDp = dutyPoints.find((dp) => dp.id === dutyPointId)
+          const isOffDuty = assignedDp?.name?.toLowerCase().includes('off duty') || assignedDp?.name?.toLowerCase().includes('off day')
           
           return {
             guardId: guard.id,
@@ -170,8 +172,8 @@ export default function AttendancePage() {
             badgeId: guard.badgeId,
             dutyPointId,
             signInTime: existing?.signInTime ? new Date(existing.signInTime).toISOString().slice(11, 16) : '',
-            status: existing?.status || 'ABSENT',
-            remarks: existing?.remarks || '',
+            status: existing?.status || (isOffDuty ? 'OFF' : 'ABSENT'),
+            remarks: existing?.remarks || (isOffDuty ? 'Scheduled Off Day' : ''),
           }
         })
         setAttendanceRows(rows)

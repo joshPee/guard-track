@@ -164,6 +164,11 @@ export default function DailyAssignmentsPage() {
 
   const shiftLabel = shift === 'day-shift' ? 'Day Shift (06:00 – 18:00)' : 'Night Shift (18:00 – 06:00)'
 
+  const offDutyCount = Object.values(assignments).filter((dpId) => {
+    const dp = dutyPoints.find((p) => p.id === dpId)
+    return dpId === 'off-duty' || dp?.name.toLowerCase().includes('off duty')
+  }).length
+
   return (
     <div className="space-y-4 pb-8">
       <Breadcrumb
@@ -183,6 +188,7 @@ export default function DailyAssignmentsPage() {
         stats={[
           { label: 'Total Guards', value: guards.length },
           { label: 'Assigned', value: Object.keys(assignments).length },
+          { label: 'Off Duty', value: offDutyCount },
           { label: 'Shift', value: shift === 'day-shift' ? 'Day' : 'Night' },
         ]}
       />
@@ -259,33 +265,63 @@ export default function DailyAssignmentsPage() {
             <div className="space-y-2">
               {guards.map(guard => {
                 const assignedDutyPointId = assignments[guard.id] || guard.defaultDutyPoint?.id || dutyPoints[0]?.id
+                const assignedDp = dutyPoints.find(dp => dp.id === assignedDutyPointId)
+                const isOffDuty = assignedDutyPointId === 'off-duty' || assignedDp?.name.toLowerCase().includes('off duty')
+                
                 return (
                   <div key={guard.id} className="flex items-center gap-4 p-3 border border-slate-200 dark:border-slate-700 rounded-lg">
                     <div className="flex-1">
-                      <div className="font-semibold text-sm">{guard.fullName}</div>
+                      <div className="font-semibold text-sm flex items-center gap-2">
+                        {guard.fullName}
+                        {isOffDuty && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            Off Duty
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-slate-500">{guard.badgeId}</div>
                     </div>
                     {isSupervisor ? (
-                      <div className="w-64">
-                        <Select
-                          value={assignedDutyPointId}
-                          onValueChange={(value) => updateAssignment(guard.id, value)}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant={isOffDuty ? 'secondary' : 'outline'}
+                          size="sm"
+                          onClick={() => updateAssignment(guard.id, isOffDuty ? (guard.defaultDutyPoint?.id || dutyPoints[0]?.id || '') : 'off-duty')}
+                          className={`h-9 text-xs px-2.5 font-semibold ${
+                            isOffDuty
+                              ? 'bg-slate-800 text-white hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600'
+                              : 'text-slate-600 hover:text-slate-900 dark:text-slate-300'
+                          }`}
+                          title="Toggle Off Duty"
                         >
-                          <SelectTrigger className="h-9 text-sm">
-                            <SelectValue placeholder="Select duty point" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {dutyPoints.map(dp => (
-                              <SelectItem key={dp.id} value={dp.id}>
-                                {dp.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          {isOffDuty ? '✓ Off Duty' : 'Mark Off Duty'}
+                        </Button>
+                        <div className="w-56">
+                          <Select
+                            value={assignedDutyPointId}
+                            onValueChange={(value) => updateAssignment(guard.id, value)}
+                          >
+                            <SelectTrigger className="h-9 text-sm">
+                              <SelectValue placeholder="Select duty point" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {dutyPoints.map(dp => (
+                                <SelectItem key={dp.id} value={dp.id}>
+                                  {dp.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     ) : (
                       <div className="text-sm text-slate-600 dark:text-slate-400">
-                        {dutyPoints.find(dp => dp.id === assignedDutyPointId)?.name || 'Unassigned'}
+                        {isOffDuty ? (
+                          <span className="font-semibold text-slate-500">Off Duty</span>
+                        ) : (
+                          assignedDp?.name || 'Unassigned'
+                        )}
                       </div>
                     )}
                   </div>

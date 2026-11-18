@@ -33,6 +33,7 @@ import {
   CheckCircle2,
   AlertCircle,
   RefreshCw,
+  Building2,
 } from 'lucide-react'
 import { PortalNavbar } from '@/components/PortalNavbar'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -239,6 +240,58 @@ export default function GuardDirectoryPage() {
     }
   }
 
+  // Find off duty duty point
+  const offDutyDp = useMemo(() => {
+    return dutyPoints.find(
+      (dp) => dp.id === 'off-duty' || dp.name.toLowerCase().includes('off duty') || dp.name.toLowerCase().includes('off day')
+    )
+  }, [dutyPoints])
+
+  // Sorted duty points prioritizing Off Duty & Outside Deployment at the top
+  const sortedDutyPoints = useMemo(() => {
+    return [...dutyPoints].sort((a, b) => {
+      const aOff = a.id === 'off-duty' || a.name.toLowerCase().includes('off duty')
+      const bOff = b.id === 'off-duty' || b.name.toLowerCase().includes('off duty')
+      if (aOff && !bOff) return -1
+      if (!aOff && bOff) return 1
+
+      const aOut = a.id === 'outside-deployment' || a.name.toLowerCase().includes('outside')
+      const bOut = b.id === 'outside-deployment' || b.name.toLowerCase().includes('outside')
+      if (aOut && !bOut) return -1
+      if (!aOut && bOut) return 1
+
+      return a.name.localeCompare(b.name)
+    })
+  }, [dutyPoints])
+
+  // Mark all unassigned guards on this roster as Off Duty with one click
+  const markAllUnassignedOffDuty = () => {
+    if (!offDutyDp) {
+      toast.error('Off Duty duty point not found')
+      return
+    }
+    let appliedCount = 0
+    const newDraft = { ...assignmentsDraft }
+    const newModified = new Set(modifiedGuards)
+
+    filteredGuards.forEach((guard) => {
+      if (!newDraft[guard.id] || newDraft[guard.id] === 'unassigned') {
+        newDraft[guard.id] = offDutyDp.id
+        newModified.add(guard.id)
+        appliedCount++
+      }
+    })
+
+    setAssignmentsDraft(newDraft)
+    setModifiedGuards(newModified)
+
+    if (appliedCount > 0) {
+      toast.success(`Marked ${appliedCount} unassigned guards as Off Duty!`)
+    } else {
+      toast.info('No unassigned guards to mark.')
+    }
+  }
+
   // Save Assignments via Batch Transaction API
   const saveAssignments = async () => {
     if (modifiedGuards.size === 0) {
@@ -319,15 +372,24 @@ export default function GuardDirectoryPage() {
   const stats = useMemo(() => {
     const dayGuards = guards.filter((g) => g.shiftType === 'DAY' || g.shiftType === 'BOTH').length
     const nightGuards = guards.filter((g) => g.shiftType === 'NIGHT' || g.shiftType === 'BOTH').length
-    const assignedCount = dailyAssignments.length
+    const offDutyCount = dailyAssignments.filter((a) =>
+      a.dutyPoint?.name?.toLowerCase().includes('off duty') || a.dutyPoint?.name?.toLowerCase().includes('off day')
+    ).length
+    const outsideCount = dailyAssignments.filter((a) =>
+      a.dutyPoint?.name?.toLowerCase().includes('outside deployment') || a.dutyPoint?.name?.toLowerCase().includes('outside')
+    ).length
+    const campusCount = Math.max(0, dailyAssignments.length - offDutyCount - outsideCount)
     return {
       total: guards.length,
       filtered: filteredGuards.length,
       dayGuards,
       nightGuards,
-      assignedCount,
+      assignedCount: dailyAssignments.length,
+      offDutyCount,
+      outsideCount,
+      campusCount,
     }
-  }, [guards, filteredGuards.length, dailyAssignments.length])
+  }, [guards, filteredGuards.length, dailyAssignments])
 
   // CSV Export
   const exportCSV = () => {
@@ -741,31 +803,31 @@ export default function GuardDirectoryPage() {
 
           <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
             <CardContent className="p-3.5 text-center">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Day Shift Roster</p>
-              <p className="text-2xl font-black text-blue-600 dark:text-blue-400 tracking-tight mt-0.5">
-                {stats.dayGuards}
-              </p>
-              <p className="text-[10px] text-blue-500/80 dark:text-blue-400/80 mt-0.5">Eligible guards</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
-            <CardContent className="p-3.5 text-center">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Night Shift Roster</p>
-              <p className="text-2xl font-black text-purple-600 dark:text-purple-400 tracking-tight mt-0.5">
-                {stats.nightGuards}
-              </p>
-              <p className="text-[10px] text-purple-500/80 dark:text-purple-400/80 mt-0.5">Eligible guards</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
-            <CardContent className="p-3.5 text-center">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Assigned on Date</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Campus Posts</p>
               <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight mt-0.5">
-                {stats.assignedCount}
+                {stats.campusCount}
               </p>
-              <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">Assigned to post</p>
+              <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">On-site duty posts</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
+            <CardContent className="p-3.5 text-center">
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Outside Deployed</p>
+              <p className="text-2xl font-black text-blue-600 dark:text-blue-400 tracking-tight mt-0.5">
+                {stats.outsideCount}
+              </p>
+              <p className="text-[10px] text-blue-500/80 dark:text-blue-400/80 mt-0.5">External deployment</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
+            <CardContent className="p-3.5 text-center">
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Off Duty</p>
+              <p className="text-2xl font-black text-slate-700 dark:text-slate-300 tracking-tight mt-0.5">
+                {stats.offDutyCount}
+              </p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Scheduled day off</p>
             </CardContent>
           </Card>
         </div>
@@ -858,27 +920,73 @@ export default function GuardDirectoryPage() {
                         <td className="py-3 px-4 font-mono text-slate-400">{index + 1}</td>
                         <td className="py-3 px-4">
                           {assignMode ? (
-                            <Select
-                              value={currentDraftVal}
-                              onValueChange={(val) => updateAssignment(guard.id, val)}
-                            >
-                              <SelectTrigger className="h-8 text-xs w-48 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700">
-                                <SelectValue placeholder="-- Unassigned --" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="unassigned">-- Unassigned --</SelectItem>
-                                {dutyPoints.map((dp) => (
-                                  <SelectItem key={dp.id} value={dp.id} className="text-xs">
-                                    {dp.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="flex items-center gap-1.5">
+                              <Select
+                                value={currentDraftVal}
+                                onValueChange={(val) => updateAssignment(guard.id, val)}
+                              >
+                                <SelectTrigger className="h-8 text-xs w-44 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 font-medium">
+                                  <SelectValue placeholder="-- Unassigned --" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="unassigned">-- Unassigned --</SelectItem>
+                                  {sortedDutyPoints.map((dp) => (
+                                    <SelectItem key={dp.id} value={dp.id} className="text-xs">
+                                      {dp.id === 'off-duty' || dp.name.toLowerCase().includes('off duty')
+                                        ? `🌙 ${dp.name}`
+                                        : dp.id === 'outside-deployment' || dp.name.toLowerCase().includes('outside')
+                                        ? `🌐 ${dp.name}`
+                                        : dp.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={currentDraftVal === offDutyDp?.id ? 'secondary' : 'outline'}
+                                onClick={() => {
+                                  if (offDutyDp) {
+                                    updateAssignment(guard.id, currentDraftVal === offDutyDp.id ? 'unassigned' : offDutyDp.id)
+                                  }
+                                }}
+                                className={`h-8 px-2 text-xs font-semibold shrink-0 ${
+                                  currentDraftVal === offDutyDp?.id
+                                    ? 'bg-slate-800 text-white dark:bg-slate-700'
+                                    : 'text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                                }`}
+                                title={currentDraftVal === offDutyDp?.id ? 'Guard is Off Duty' : 'Mark Off Duty'}
+                              >
+                                <Moon className="w-3 h-3" />
+                              </Button>
+                            </div>
                           ) : assignedInfo ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60 font-semibold">
-                              <MapPin className="w-3 h-3 text-emerald-600" />
-                              {assignedInfo.dutyPointName}
-                            </span>
+                            (() => {
+                              const isOffDuty = assignedInfo.dutyPointName.toLowerCase().includes('off duty')
+                              const isOutside = assignedInfo.dutyPointName.toLowerCase().includes('outside')
+                              if (isOffDuty) {
+                                return (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 font-semibold text-xs">
+                                    <Moon className="w-3 h-3 text-slate-500" />
+                                    Off Duty
+                                  </span>
+                                )
+                              }
+                              if (isOutside) {
+                                return (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800/80 font-semibold text-xs">
+                                    <Building2 className="w-3 h-3 text-blue-600" />
+                                    Outside Deployment
+                                  </span>
+                                )
+                              }
+                              return (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60 font-semibold text-xs">
+                                  <MapPin className="w-3 h-3 text-emerald-600" />
+                                  {assignedInfo.dutyPointName}
+                                </span>
+                              )
+                            })()
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 text-[11px] font-medium border border-dashed border-slate-300 dark:border-slate-700">
                               Unassigned
@@ -970,36 +1078,86 @@ export default function GuardDirectoryPage() {
                     {/* Top Duty Point Badge or Selector */}
                     <div className="text-center">
                       {assignMode ? (
-                        <div className="space-y-1">
-                          <Select
-                            value={currentDraftVal}
-                            onValueChange={(value) => updateAssignment(guard.id, value)}
-                          >
-                            <SelectTrigger className="h-9 text-xs bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/80 font-bold text-emerald-900 dark:text-emerald-200">
-                              <SelectValue placeholder="-- Unassigned --" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="unassigned">-- Unassigned --</SelectItem>
-                              {dutyPoints.map((dp) => (
-                                <SelectItem key={dp.id} value={dp.id} className="text-xs">
-                                  {dp.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <Select
+                              value={currentDraftVal}
+                              onValueChange={(value) => updateAssignment(guard.id, value)}
+                            >
+                              <SelectTrigger className="h-9 text-xs bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/80 font-bold text-emerald-900 dark:text-emerald-200 flex-1">
+                                <SelectValue placeholder="-- Unassigned --" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unassigned">-- Unassigned --</SelectItem>
+                                {sortedDutyPoints.map((dp) => (
+                                  <SelectItem key={dp.id} value={dp.id} className="text-xs">
+                                    {dp.id === 'off-duty' || dp.name.toLowerCase().includes('off duty')
+                                      ? `🌙 ${dp.name}`
+                                      : dp.id === 'outside-deployment' || dp.name.toLowerCase().includes('outside')
+                                      ? `🌐 ${dp.name}`
+                                      : dp.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={currentDraftVal === offDutyDp?.id ? 'secondary' : 'outline'}
+                              onClick={() => {
+                                if (offDutyDp) {
+                                  updateAssignment(guard.id, currentDraftVal === offDutyDp.id ? 'unassigned' : offDutyDp.id)
+                                }
+                              }}
+                              className={`h-9 px-2 text-xs font-semibold shrink-0 ${
+                                currentDraftVal === offDutyDp?.id
+                                  ? 'bg-slate-800 text-white dark:bg-slate-700'
+                                  : 'text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                              }`}
+                              title={currentDraftVal === offDutyDp?.id ? 'Guard is Off Duty' : 'Mark Off Duty'}
+                            >
+                              <Moon className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
                           {isModified && (
-                            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block">
                               ● Pending Save
                             </span>
                           )}
                         </div>
                       ) : assignedInfo ? (
-                        <div className="w-full inline-flex items-center justify-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/80 px-3 py-1.5 rounded-xl shadow-2xs">
-                          <MapPin className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                          <span className="font-bold text-xs text-emerald-800 dark:text-emerald-300 truncate max-w-[200px]">
-                            {assignedInfo.dutyPointName}
-                          </span>
-                        </div>
+                        (() => {
+                          const isOffDuty = assignedInfo.dutyPointName.toLowerCase().includes('off duty')
+                          const isOutside = assignedInfo.dutyPointName.toLowerCase().includes('outside')
+                          if (isOffDuty) {
+                            return (
+                              <div className="w-full inline-flex items-center justify-center gap-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-1.5 rounded-xl shadow-2xs text-slate-700 dark:text-slate-300">
+                                <Moon className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                                <span className="font-bold text-xs truncate max-w-[200px]">
+                                  Off Duty
+                                </span>
+                              </div>
+                            )
+                          }
+                          if (isOutside) {
+                            return (
+                              <div className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/80 px-3 py-1.5 rounded-xl shadow-2xs text-blue-800 dark:text-blue-300">
+                                <Building2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                                <span className="font-bold text-xs truncate max-w-[200px]">
+                                  Outside Deployment
+                                </span>
+                              </div>
+                            )
+                          }
+                          return (
+                            <div className="w-full inline-flex items-center justify-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/80 px-3 py-1.5 rounded-xl shadow-2xs">
+                              <MapPin className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                              <span className="font-bold text-xs text-emerald-800 dark:text-emerald-300 truncate max-w-[200px]">
+                                {assignedInfo.dutyPointName}
+                              </span>
+                            </div>
+                          )
+                        })()
                       ) : (
                         <div className="w-full inline-flex items-center justify-center gap-1.5 bg-slate-100/80 dark:bg-slate-800/70 border border-dashed border-slate-300 dark:border-slate-700 px-3 py-1.5 rounded-xl">
                           <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
@@ -1114,6 +1272,17 @@ export default function GuardDirectoryPage() {
             >
               <Wand2 className="w-3.5 h-3.5 text-amber-400" />
               <span className="hidden sm:inline">Fill Defaults</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={markAllUnassignedOffDuty}
+              className="h-8 text-xs border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 gap-1.5"
+              title="Mark all unassigned guards on this shift as Off Duty"
+            >
+              <Moon className="w-3.5 h-3.5 text-blue-300" />
+              <span className="hidden sm:inline">Mark Unassigned Off Duty</span>
             </Button>
 
             <Button
