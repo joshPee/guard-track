@@ -13,6 +13,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    console.log('[upload] token present:', Boolean(process.env.BLOB_READ_WRITE_TOKEN), 'prefix:', process.env.BLOB_READ_WRITE_TOKEN?.slice(0, 30), 'len:', process.env.BLOB_READ_WRITE_TOKEN?.length)
+
     if (!isStorageConfigured()) {
       return NextResponse.json(
         { error: 'Image storage is not configured. Set BLOB_READ_WRITE_TOKEN.' },
