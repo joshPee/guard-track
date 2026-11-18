@@ -186,14 +186,24 @@ export default function AssignmentsPortalPage() {
     const offDutyCount = dailyAssignments.filter((a) =>
       a.dutyPoint.name.toLowerCase().includes('off duty') || a.dutyPoint.name.toLowerCase().includes('off day')
     ).length
-    const campusCount = Math.max(0, dailyAssignments.length - offDutyCount)
+    const outsideInDaily = dailyAssignments.filter((a) =>
+      a.dutyPoint.name.toLowerCase().includes('outside deployment') || a.dutyPoint.name.toLowerCase().includes('outside')
+    ).length
+    // Total assigned on shift excluding those deployed outside
+    const totalAssigned = Math.max(0, dailyAssignments.length - outsideInDaily)
+    const campusCount = Math.max(0, dailyAssignments.length - offDutyCount - outsideInDaily)
     const pointsCount = new Set(
       dailyAssignments
-        .filter((a) => !a.dutyPoint.name.toLowerCase().includes('off duty'))
+        .filter(
+          (a) =>
+            !a.dutyPoint.name.toLowerCase().includes('off duty') &&
+            !a.dutyPoint.name.toLowerCase().includes('outside')
+        )
         .map((a) => a.dutyPoint.name)
     ).size
     return {
       total: dailyAssignments.length,
+      totalAssigned,
       filtered: filteredAssignments.length,
       offDutyCount,
       outsideCount: outsideDeployedCount,
@@ -247,39 +257,37 @@ export default function AssignmentsPortalPage() {
   return (
     <div className="min-h-screen bg-slate-50/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
       {/* View-Only Top Navbar (No page switcher bar) */}
-      <div className="print:hidden">
-        <PortalNavbar
-          currentPage="assignments"
-          showPageSwitcher={false}
-          subtitle="Daily Duty Assignments · Executive View"
-          onPrint={handlePrint}
-          extraActions={
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={exportCSV}
-                className="h-9 text-xs border-slate-200 dark:border-slate-800 gap-1.5"
-                title="Export assignments as CSV"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Export</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => fetchDailyAssignments(true)}
-                disabled={refreshing}
-                className="h-9 text-xs border-slate-200 dark:border-slate-800"
-                title="Refresh assignments"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline ml-1.5">Refresh</span>
-              </Button>
-            </>
-          }
-        />
-      </div>
+      <PortalNavbar
+        currentPage="assignments"
+        showPageSwitcher={false}
+        subtitle="Daily Duty Assignments · Executive View"
+        onPrint={handlePrint}
+        extraActions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportCSV}
+              className="h-9 text-xs border-slate-200 dark:border-slate-800 gap-1.5"
+              title="Export assignments as CSV"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Export</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchDailyAssignments(true)}
+              disabled={refreshing}
+              className="h-9 text-xs border-slate-200 dark:border-slate-800"
+              title="Refresh assignments"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline ml-1.5">Refresh</span>
+            </Button>
+          </>
+        }
+      />
 
       {/* Printable Official Header (Only in print output) */}
       <div className="hidden print:block p-6 border-b border-slate-300 text-black">
@@ -476,10 +484,10 @@ export default function AssignmentsPortalPage() {
             <CardContent className="p-3.5 text-center">
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Assigned</p>
               <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-                {stats.total}
+                {stats.totalAssigned}
               </p>
               <p className="text-[10px] text-slate-400 mt-0.5">
-                {stats.filtered !== stats.total ? `Showing ${stats.filtered}` : 'Daily roster count'}
+                Excludes outside
               </p>
             </CardContent>
           </Card>

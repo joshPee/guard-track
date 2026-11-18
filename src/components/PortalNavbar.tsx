@@ -27,30 +27,33 @@ export function PortalNavbar({
   subtitle,
 }: PortalNavbarProps) {
   return (
-    <header className="sticky top-0 z-30 w-full backdrop-blur-md bg-white/95 dark:bg-slate-900/95 border-b border-slate-200/80 dark:border-slate-800 transition-colors shadow-xs">
+    <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-white/95 dark:bg-slate-900/95 border-b border-slate-200/80 dark:border-slate-800 transition-colors shadow-xs print:hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Main Header Row */}
-        <div className="flex items-center justify-between min-h-16 py-2.5 sm:py-3 gap-3 flex-wrap sm:flex-nowrap">
+        {/* Main Header Row - strictly in-line horizontally */}
+        <div className="flex items-center justify-between h-16 gap-3">
           {/* Brand Logo & Title */}
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-white p-1.5 shadow-sm border border-slate-200/80 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white p-1.5 shadow-sm border border-slate-200/80 shrink-0">
               <img src="/pcc.png" alt="PCC Logo" className="w-full h-full object-contain" />
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">
-                  PCC Security Unit
+            <div className="min-w-0 flex items-center gap-2">
+              <span className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight whitespace-nowrap">
+                PCC Security Unit
+              </span>
+              {!showPageSwitcher && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60 shrink-0">
+                  <Eye className="w-2.5 h-2.5" />
+                  View Only
                 </span>
-                {!showPageSwitcher && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60 shrink-0">
-                    <Eye className="w-2.5 h-2.5" />
-                    View Only
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">
-                {subtitle || 'Pentecost Convention Centre · Gomoa Fetteh'}
-              </p>
+              )}
+              {subtitle && (
+                <span className="hidden lg:inline text-slate-300 dark:text-slate-700">·</span>
+              )}
+              {subtitle && (
+                <span className="hidden lg:inline text-xs text-slate-500 dark:text-slate-400 font-medium truncate">
+                  {subtitle}
+                </span>
+              )}
             </div>
           </div>
 

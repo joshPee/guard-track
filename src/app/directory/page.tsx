@@ -442,26 +442,24 @@ export default function GuardDirectoryPage() {
   return (
     <div className="min-h-screen bg-slate-50/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
       {/* Top Navbar */}
-      <div className="print:hidden">
-        <PortalNavbar
-          currentPage="directory"
-          showPageSwitcher={true}
-          onPrint={handlePrint}
-          extraActions={
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fetchDailyAssignments(true)}
-              disabled={refreshing}
-              className="h-9 text-xs border-slate-200 dark:border-slate-800"
-              title="Refresh personnel directory"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden md:inline ml-1.5">Refresh</span>
-            </Button>
-          }
-        />
-      </div>
+      <PortalNavbar
+        currentPage="directory"
+        showPageSwitcher={true}
+        onPrint={handlePrint}
+        extraActions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchDailyAssignments(true)}
+            disabled={refreshing}
+            className="h-9 text-xs border-slate-200 dark:border-slate-800"
+            title="Refresh personnel directory"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden md:inline ml-1.5">Refresh</span>
+          </Button>
+        }
+      />
 
       {/* Printable Official Header */}
       <div className="hidden print:block p-6 border-b border-slate-300 text-black">
