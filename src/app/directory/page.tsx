@@ -1022,17 +1022,23 @@ export default function GuardDirectoryPage() {
                           </span>
                         </td>
                         <td className="py-3 px-4">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              guard.shiftType === 'DAY'
-                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
-                                : guard.shiftType === 'NIGHT'
-                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
-                                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                            }`}
-                          >
-                            {guard.shiftType === 'DAY' ? 'Day (DS)' : guard.shiftType === 'NIGHT' ? 'Night (NS)' : 'Both'}
-                          </span>
+                          {(assignedInfo?.dutyPointName || guard.defaultDutyPoint?.name || '').toLowerCase().includes('outside') ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/60">
+                              Outside
+                            </span>
+                          ) : (
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                guard.shiftType === 'DAY'
+                                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                                  : guard.shiftType === 'NIGHT'
+                                  ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
+                                  : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                              }`}
+                            >
+                              {guard.shiftType === 'DAY' ? 'Day (DS)' : guard.shiftType === 'NIGHT' ? 'Night (NS)' : 'Both'}
+                            </span>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
                           {guard.defaultDutyPoint?.name || <span className="text-slate-400 italic">None</span>}
@@ -1199,30 +1205,32 @@ export default function GuardDirectoryPage() {
 
                     {/* Shift & Details */}
                     <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-slate-400">Shift Type</span>
-                        <span
-                          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            guard.shiftType === 'DAY'
-                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
-                              : guard.shiftType === 'NIGHT'
-                              ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
-                              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                          }`}
-                        >
-                          {guard.shiftType === 'DAY' ? (
-                            <>
-                              <Sun className="w-2.5 h-2.5" /> Day Shift
-                            </>
-                          ) : guard.shiftType === 'NIGHT' ? (
-                            <>
-                              <Moon className="w-2.5 h-2.5" /> Night Shift
-                            </>
-                          ) : (
-                            'Both Shifts'
-                          )}
-                        </span>
-                      </div>
+                      {!((assignedInfo?.dutyPointName || guard.defaultDutyPoint?.name || '').toLowerCase().includes('outside')) && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-slate-400">Shift Type</span>
+                          <span
+                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              guard.shiftType === 'DAY'
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                                : guard.shiftType === 'NIGHT'
+                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
+                                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                            }`}
+                          >
+                            {guard.shiftType === 'DAY' ? (
+                              <>
+                                <Sun className="w-2.5 h-2.5" /> Day Shift
+                              </>
+                            ) : guard.shiftType === 'NIGHT' ? (
+                              <>
+                                <Moon className="w-2.5 h-2.5" /> Night Shift
+                              </>
+                            ) : (
+                              'Both Shifts'
+                            )}
+                          </span>
+                        </div>
+                      )}
 
                       {guard.phone ? (
                         <a

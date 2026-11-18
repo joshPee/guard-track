@@ -26,6 +26,7 @@ const dayShiftGuards = [
   'Ebenezer Yeboah',
   'Joyce Bezoro',
   'Antwi Gabriel',
+  'Francisca Tetteh',
 ]
 
 const nightShiftGuards = [

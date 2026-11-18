@@ -571,130 +571,128 @@ export default function AssignmentsPortalPage() {
         ) : (
           /* Visual Assignment Cards (Clean view-only for the boss) */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredAssignments.map((assignment) => (
-              <Card
-                key={assignment.id}
-                className="group border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-md hover:border-blue-400 dark:hover:border-blue-600 transition-all duration-200 bg-white dark:bg-slate-900/90 rounded-2xl overflow-hidden flex flex-col justify-between"
-              >
-                <CardContent className="p-4 space-y-3.5 flex-1 flex flex-col justify-between">
-                  {/* Top Duty Point Highlight */}
-                  <div className="text-center">
-                    {(() => {
-                      const isOffDuty = assignment.dutyPoint.name.toLowerCase().includes('off duty') || assignment.dutyPoint.name.toLowerCase().includes('off day')
-                      const isOutside = assignment.dutyPoint.name.toLowerCase().includes('outside deployment') || assignment.dutyPoint.name.toLowerCase().includes('outside')
+            {filteredAssignments.map((assignment) => {
+              const isOffDuty =
+                assignment.dutyPoint.name.toLowerCase().includes('off duty') ||
+                assignment.dutyPoint.name.toLowerCase().includes('off day')
+              const isOutside =
+                assignment.dutyPoint.name.toLowerCase().includes('outside deployment') ||
+                assignment.dutyPoint.name.toLowerCase().includes('outside')
 
-                      if (isOffDuty) {
-                        return (
-                          <div className="w-full inline-flex items-center justify-center gap-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-1.5 rounded-xl shadow-2xs text-slate-700 dark:text-slate-300">
-                            <Moon className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                            <span className="font-bold text-xs truncate max-w-[200px]">
-                              Off Duty (Day Off)
-                            </span>
-                          </div>
-                        )
-                      }
-
-                      if (isOutside) {
-                        return (
-                          <div className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/80 px-3 py-1.5 rounded-xl shadow-2xs text-blue-800 dark:text-blue-300">
-                            <Building2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                            <span className="font-bold text-xs truncate max-w-[200px]">
-                              Outside Deployment
-                            </span>
-                          </div>
-                        )
-                      }
-
-                      return (
+              return (
+                <Card
+                  key={assignment.id}
+                  className="group border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-md hover:border-blue-400 dark:hover:border-blue-600 transition-all duration-200 bg-white dark:bg-slate-900/90 rounded-2xl overflow-hidden flex flex-col justify-between"
+                >
+                  <CardContent className="p-4 space-y-3.5 flex-1 flex flex-col justify-between">
+                    {/* Top Duty Point Highlight */}
+                    <div className="text-center">
+                      {isOffDuty ? (
+                        <div className="w-full inline-flex items-center justify-center gap-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-1.5 rounded-xl shadow-2xs text-slate-700 dark:text-slate-300">
+                          <Moon className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                          <span className="font-bold text-xs truncate max-w-[200px]">
+                            Off Duty (Day Off)
+                          </span>
+                        </div>
+                      ) : isOutside ? (
+                        <div className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/80 px-3 py-1.5 rounded-xl shadow-2xs text-blue-800 dark:text-blue-300">
+                          <Building2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                          <span className="font-bold text-xs truncate max-w-[200px]">
+                            Outside Deployment
+                          </span>
+                        </div>
+                      ) : (
                         <div className="w-full inline-flex items-center justify-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/80 px-3 py-1.5 rounded-xl shadow-2xs">
                           <MapPin className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                           <span className="font-bold text-xs text-emerald-800 dark:text-emerald-300 truncate max-w-[200px]">
                             {assignment.dutyPoint.name}
                           </span>
                         </div>
-                      )
-                    })()}
-                  </div>
-
-                  {/* Guard Photo or Initials Avatar */}
-                  <div className="flex justify-center my-1">
-                    <div className="relative w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 border-2 border-slate-200 dark:border-slate-700 shadow-xs group-hover:scale-105 transition-transform duration-200 flex items-center justify-center">
-                      {assignment.guard.photoUrl ? (
-                        <img
-                          src={assignment.guard.photoUrl}
-                          alt={assignment.guard.fullName}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span className="font-bold text-base text-slate-600 dark:text-slate-300 tracking-wider">
-                          {getInitials(assignment.guard.fullName)}
-                        </span>
                       )}
                     </div>
-                  </div>
 
-                  {/* Name and Badge ID */}
-                  <div className="text-center space-y-1">
-                    <h3 className="font-bold text-sm text-slate-900 dark:text-white line-clamp-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      {assignment.guard.fullName}
-                    </h3>
-                    <div className="inline-block">
-                      <span className="font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/90 px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700/60">
-                        {assignment.guard.badgeId}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Shift Badge & Contact Phone */}
-                  <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-slate-400">Shift</span>
-                      <span
-                        className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          assignment.guard.shiftType === 'DAY'
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
-                            : assignment.guard.shiftType === 'NIGHT'
-                            ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
-                            : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                        }`}
-                      >
-                        {assignment.guard.shiftType === 'DAY' ? (
-                          <>
-                            <Sun className="w-2.5 h-2.5" /> Day Shift
-                          </>
-                        ) : assignment.guard.shiftType === 'NIGHT' ? (
-                          <>
-                            <Moon className="w-2.5 h-2.5" /> Night Shift
-                          </>
+                    {/* Guard Photo or Initials Avatar */}
+                    <div className="flex justify-center my-1">
+                      <div className="relative w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 border-2 border-slate-200 dark:border-slate-700 shadow-xs group-hover:scale-105 transition-transform duration-200 flex items-center justify-center">
+                        {assignment.guard.photoUrl ? (
+                          <img
+                            src={assignment.guard.photoUrl}
+                            alt={assignment.guard.fullName}
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
-                          'Both Shifts'
+                          <span className="font-bold text-base text-slate-600 dark:text-slate-300 tracking-wider">
+                            {getInitials(assignment.guard.fullName)}
+                          </span>
                         )}
-                      </span>
+                      </div>
                     </div>
 
-                    {assignment.guard.phone ? (
-                      <a
-                        href={`tel:${assignment.guard.phone}`}
-                        className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-slate-600 dark:text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800/60"
-                        title="Click to call guard"
-                      >
-                        <div className="flex items-center gap-1.5 font-mono text-xs">
-                          <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>{assignment.guard.phone}</span>
-                        </div>
-                        <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                          Call →
+                    {/* Name and Badge ID */}
+                    <div className="text-center space-y-1">
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white line-clamp-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                        {assignment.guard.fullName}
+                      </h3>
+                      <div className="inline-block">
+                        <span className="font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/90 px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700/60">
+                          {assignment.guard.badgeId}
                         </span>
-                      </a>
-                    ) : (
-                      <div className="text-center text-[11px] text-slate-400 italic py-1">
-                        No phone on file
                       </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    </div>
+
+                    {/* Shift Badge (hidden for outside deployed guards) & Contact Phone */}
+                    <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                      {!isOutside && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-slate-400">Shift</span>
+                          <span
+                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              assignment.guard.shiftType === 'DAY'
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                                : assignment.guard.shiftType === 'NIGHT'
+                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
+                                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                            }`}
+                          >
+                            {assignment.guard.shiftType === 'DAY' ? (
+                              <>
+                                <Sun className="w-2.5 h-2.5" /> Day Shift
+                              </>
+                            ) : assignment.guard.shiftType === 'NIGHT' ? (
+                              <>
+                                <Moon className="w-2.5 h-2.5" /> Night Shift
+                              </>
+                            ) : (
+                              'Both Shifts'
+                            )}
+                          </span>
+                        </div>
+                      )}
+
+                      {assignment.guard.phone ? (
+                        <a
+                          href={`tel:${assignment.guard.phone}`}
+                          className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-slate-600 dark:text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800/60"
+                          title="Click to call guard"
+                        >
+                          <div className="flex items-center gap-1.5 font-mono text-xs">
+                            <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>{assignment.guard.phone}</span>
+                          </div>
+                          <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                            Call →
+                          </span>
+                        </a>
+                      ) : (
+                        <div className="text-center text-[11px] text-slate-400 italic py-1">
+                          No phone on file
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
 
