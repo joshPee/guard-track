@@ -27,9 +27,16 @@ import {
   Building2,
   AlertTriangle,
   Layers,
+  Share2,
 } from 'lucide-react'
 import { PortalNavbar } from '@/components/PortalNavbar'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface Shift {
   id: string
@@ -631,27 +638,31 @@ export default function AssignmentsPortalPage() {
         onPrint={handlePrint}
         extraActions={
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={exportCSV}
-              className="h-9 text-xs border-slate-200 dark:border-slate-800 gap-1.5"
-              title="Export assignments as CSV"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Export</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={shareToWhatsApp}
-              className="h-9 text-xs border-green-500/50 dark:border-green-600/50 text-green-700 dark:text-green-400 gap-1.5 hover:bg-green-50 dark:hover:bg-green-950/30"
-              title="Share roster to WhatsApp"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/whatsapp.png" alt="WhatsApp" className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">WhatsApp</span>
-            </Button>
+            {/* Share menu — WhatsApp + CSV export grouped to keep the top bar clean */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 text-xs border-slate-200 dark:border-slate-800 gap-1.5"
+                  title="Share or export roster"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Share</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onClick={shareToWhatsApp} className="cursor-pointer gap-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/whatsapp.png" alt="" className="w-4 h-4" />
+                  Share via WhatsApp
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportCSV} className="cursor-pointer gap-2">
+                  <Download className="w-4 h-4" />
+                  Export as CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>
         }
       />
