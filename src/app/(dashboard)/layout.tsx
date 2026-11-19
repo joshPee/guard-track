@@ -7,6 +7,7 @@ import { DashboardSidebar } from '@/components/Sidebar'
 import { DashboardTopBar } from '@/components/DashboardTopBar'
 import { MobileBottomNav } from '@/components/MobileBottomNav'
 import { QuickActionFAB } from '@/components/QuickActionFAB'
+import { CommandPalette } from '@/components/CommandPalette'
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession()
@@ -57,6 +58,9 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
       {/* Quick Action FAB — mobile only */}
       <QuickActionFAB />
+
+      {/* Cmd+K Command Palette */}
+      <CommandPalette />
     </div>
   )
 }

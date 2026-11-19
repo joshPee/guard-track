@@ -8,6 +8,7 @@ const updateDutyPointSchema = z.object({
   name: z.string().min(1).optional(),
   zoneId: z.string().min(1).optional(),
   isActive: z.boolean().optional(),
+  requiredGuards: z.number().int().min(1).max(20).nullish(),
 })
 
 export async function PUT(

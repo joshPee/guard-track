@@ -80,6 +80,37 @@ interface DailyAssignment {
   date: string
 }
 
+const PORTAL_TOKEN_KEY = 'pcc_portal_token'
+
+function getPortalToken(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(PORTAL_TOKEN_KEY)
+}
+
+// POST with the shared portal token; prompts once and retries on 401
+async function postDailyAssignments(body: unknown): Promise<Response> {
+  const doFetch = (token: string | null) =>
+    fetch('/api/daily-assignments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'x-portal-token': token } : {}),
+      },
+      body: JSON.stringify(body),
+    })
+
+  let res = await doFetch(getPortalToken())
+  if (res.status === 401) {
+    const token = window.prompt('Portal access token required to save assignments:')
+    if (token && token.trim()) {
+      const trimmed = token.trim()
+      localStorage.setItem(PORTAL_TOKEN_KEY, trimmed)
+      res = await doFetch(trimmed)
+    }
+  }
+  return res
+}
+
 export default function GuardDirectoryPage() {
   const [guards, setGuards] = useState<Guard[]>([])
   const [dutyPoints, setDutyPoints] = useState<DutyPoint[]>([])
@@ -365,12 +396,12 @@ export default function GuardDirectoryPage() {
         date: selectedDate,
       }))
 
-      const res = await fetch('/api/daily-assignments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ batch: batchPayload }),
-      })
+      const res = await postDailyAssignments({ batch: batchPayload })
 
+      if (res.status === 401) {
+        toast.error('Invalid portal token. Please try saving again.')
+        return
+      }
       if (!res.ok) {
         throw new Error('Server returned error while saving assignments')
       }

@@ -6,6 +6,7 @@ import { SummaryCard } from '@/components/ui/summary-card'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CampusCoverageMap } from '@/components/ui/campus-coverage-map'
+import { DashboardAutoRefresh } from '@/components/DashboardAutoRefresh'
 import {
   Shield,
   Clock,
@@ -17,7 +18,8 @@ import {
   Sun,
   Moon,
   AlertTriangle,
-  Building
+  Building,
+  CalendarCheck
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -25,8 +27,11 @@ async function getDashboardStats() {
   try {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
+    const startOfToday = new Date(today)
+    const endOfToday = new Date(today)
+    endOfToday.setHours(23, 59, 59, 999)
 
-    const [totalGuards, allDutyPoints, records, recentRecords, alertSettings] = await Promise.all([
+    const [totalGuards, allDutyPoints, records, recentRecords, alertSettings, onLeaveRows, pendingLeaveRows] = await Promise.all([
       prisma.guard.count({
         where: { status: 'ACTIVE' },
       }),
@@ -60,6 +65,19 @@ async function getDashboardStats() {
       prisma.setting.findUnique({
         where: { key: 'alert_settings' },
       }),
+      // Approved leave overlapping today + pending approvals count
+      prisma.$queryRawUnsafe<any[]>(`
+        SELECT l.id, l.type, g."fullName" AS "guardName", g."badgeId" AS "guardBadgeId"
+        FROM leave_records l
+        JOIN guards g ON l."guardId" = g.id
+        WHERE l.status = 'APPROVED'
+          AND l."startDate" <= $1::timestamp
+          AND l."endDate" >= $2::timestamp
+        ORDER BY g."fullName" ASC;
+      `, endOfToday.toISOString(), startOfToday.toISOString()),
+      prisma.$queryRawUnsafe<any[]>(`
+        SELECT COUNT(*)::int AS count FROM leave_records WHERE status = 'PENDING';
+      `),
     ])
 
     const present = records.filter((r) => r.status === 'PRESENT').length
@@ -140,6 +158,8 @@ async function getDashboardStats() {
       mappedDutyPoints,
       recentRecords,
       alerts,
+      onLeaveToday: onLeaveRows ?? [],
+      pendingLeaveCount: pendingLeaveRows?.[0]?.count ?? 0,
     }
   } catch (error) {
     console.error('Error fetching dashboard stats:', error)
@@ -154,6 +174,8 @@ async function getDashboardStats() {
       mappedDutyPoints: [],
       recentRecords: [],
       alerts: [],
+      onLeaveToday: [],
+      pendingLeaveCount: 0,
     }
   }
 }
@@ -201,6 +223,7 @@ export default async function DashboardPage() {
           { label: 'Absent', value: stats.absent, highlight: stats.absent > 0 },
         ]}
       />
+      <DashboardAutoRefresh />
 
       {/* Alerts Banner */}
       {hasAlerts && (
@@ -343,6 +366,57 @@ export default async function DashboardPage() {
         />
       </div>
 
+      {/* Leave & Exeat Strip */}
+      {(stats.onLeaveToday.length > 0 || (isSupervisor && stats.pendingLeaveCount > 0)) && (
+        <Card className="border-sky-200 dark:border-sky-900 bg-sky-50/60 dark:bg-sky-950/20 shadow-sm">
+          <CardContent className="p-3.5 sm:p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-center gap-2.5 shrink-0">
+                <div className="p-2 rounded-lg bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300">
+                  <CalendarCheck className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">
+                    {stats.onLeaveToday.length > 0
+                      ? `${stats.onLeaveToday.length} guard${stats.onLeaveToday.length !== 1 ? 's' : ''} on approved leave today`
+                      : 'Leave & Exeats'}
+                  </p>
+                  {isSupervisor && stats.pendingLeaveCount > 0 && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold">
+                      {stats.pendingLeaveCount} pending approval{stats.pendingLeaveCount !== 1 ? 's' : ''}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {stats.onLeaveToday.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
+                  {stats.onLeaveToday.map((l: any) => (
+                    <span
+                      key={l.id}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white dark:bg-slate-800 border border-sky-200 dark:border-sky-800 text-[11px] font-medium text-slate-700 dark:text-slate-300"
+                      title={l.guardBadgeId}
+                    >
+                      <span className="font-semibold">{l.guardName}</span>
+                      <span className="text-slate-400">·</span>
+                      <span className="text-sky-700 dark:text-sky-300 font-semibold">{l.type?.replace(/_/g, ' ')}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <Link
+                href="/leave"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 text-xs font-semibold hover:bg-sky-100 dark:hover:bg-sky-900/40 transition-colors shrink-0 self-start sm:self-center"
+              >
+                <span>Manage Leave</span>
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Interactive Visual Campus Map & Patrol Grid */}
       <CampusCoverageMap
         dutyPoints={stats.mappedDutyPoints}
@@ -445,7 +519,7 @@ export default async function DashboardPage() {
               >
                 <span className="flex items-center gap-2">
                   <Building className="h-4 w-4 text-teal-600" />
-                  21 Campus Posts Roster
+                  {stats.totalDutyPoints} Campus Posts Roster
                 </span>
                 <ArrowRight className="h-3 w-3 text-slate-400" />
               </Link>

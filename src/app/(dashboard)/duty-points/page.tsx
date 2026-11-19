@@ -34,7 +34,8 @@ import {
   Edit2,
   Trash2,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  AlertTriangle
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { PageHeader } from '@/components/ui/page-header'
@@ -52,6 +53,7 @@ interface DutyPoint {
   name: string
   isActive: boolean
   zoneId: string
+  requiredGuards: number | null
   zone: {
     id: string
     name: string
@@ -112,6 +114,7 @@ export default function DutyPointsPage() {
     name: '',
     zoneId: '',
     isActive: true,
+    requiredGuards: '1',
   })
 
   useEffect(() => {
@@ -194,6 +197,7 @@ export default function DutyPointsPage() {
       name: '',
       zoneId: zones[0]?.id || '',
       isActive: true,
+      requiredGuards: '1',
     })
     setFormError('')
     setShowAddModal(true)
@@ -205,6 +209,7 @@ export default function DutyPointsPage() {
       name: dp.name,
       zoneId: dp.zoneId,
       isActive: dp.isActive,
+      requiredGuards: String(dp.requiredGuards ?? 1),
     })
     setFormError('')
   }
@@ -222,7 +227,10 @@ export default function DutyPointsPage() {
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          requiredGuards: formData.requiredGuards ? parseInt(formData.requiredGuards, 10) : null,
+        }),
       })
 
       if (!res.ok) {
@@ -479,13 +487,29 @@ export default function DutyPointsPage() {
                         </span>
                       </td>
 
-                      {/* Assigned Guards Count */}
+                      {/* Assigned Guards Count vs Required */}
                       <td className="py-3.5 px-4 text-center">
-                        <span className="inline-flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 font-medium">
-                          <Users className="h-3.5 w-3.5 text-slate-400" />
-                          {dp._count?.guards ?? 0}{' '}
-                          {(dp._count?.guards ?? 0) === 1 ? 'guard' : 'guards'}
-                        </span>
+                        {(() => {
+                          const assigned = dp._count?.guards ?? 0
+                          const required = dp.requiredGuards ?? 1
+                          const understaffed = dp.isActive && assigned < required
+                          return (
+                            <span
+                              className={`inline-flex items-center gap-1.5 text-xs font-medium ${
+                                understaffed
+                                  ? 'text-amber-600 dark:text-amber-400'
+                                  : 'text-slate-600 dark:text-slate-300'
+                              }`}
+                              title={understaffed ? `Understaffed: needs ${required} guard${required !== 1 ? 's' : ''}` : undefined}
+                            >
+                              <Users className="h-3.5 w-3.5 text-slate-400" />
+                              {assigned}
+                              <span className="text-slate-400">/</span>
+                              <span className={understaffed ? 'font-bold' : ''}>{required}</span>
+                              {understaffed && <AlertTriangle className="h-3 w-3" />}
+                            </span>
+                          )
+                        })()}
                       </td>
 
                       {/* Actions */}
@@ -599,6 +623,24 @@ export default function DutyPointsPage() {
                   )}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="requiredGuards" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Guards Required per Shift
+              </Label>
+              <Input
+                id="requiredGuards"
+                type="number"
+                min={1}
+                max={20}
+                value={formData.requiredGuards}
+                onChange={(e) => setFormData({ ...formData, requiredGuards: e.target.value })}
+                className="text-sm bg-slate-50 dark:bg-slate-800/80"
+              />
+              <p className="text-[11px] text-slate-400">
+                Used for understaffing alerts on rosters and coverage reports.
+              </p>
             </div>
 
             {editingPoint && (

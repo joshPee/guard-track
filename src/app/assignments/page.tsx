@@ -43,6 +43,7 @@ interface DutyPoint {
   name: string
   isActive: boolean
   zoneId: string
+  requiredGuards?: number | null
 }
 
 interface Zone {
@@ -233,7 +234,7 @@ export default function AssignmentsPortalPage() {
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))
   }, [dailyAssignments])
 
-  // Calculate uncovered posts (critical duty points with 0 guards assigned)
+  // Calculate uncovered/understaffed posts (critical duty points below required headcount)
   // Only check if assignments have been submitted for this shift
   const uncoveredPosts = useMemo(() => {
     // Don't show alert if no assignments have been submitted for this shift yet
@@ -241,34 +242,34 @@ export default function AssignmentsPortalPage() {
       return []
     }
 
-    // Get assigned duty point names for the current shift
-    const assignedPointNames = new Set(
-      dailyAssignments
-        .filter((a) => {
-          const name = a.dutyPoint.name.toLowerCase()
-          // Exclude off duty and outside deployment from coverage check
-          return !name.includes('off duty') &&
-                 !name.includes('off day') &&
-                 !name.includes('outside deployment') &&
-                 !name.includes('outside')
-        })
-        .map((a) => a.dutyPoint.name)
-    )
+    const isExcluded = (name: string) => {
+      const n = name.toLowerCase()
+      return n.includes('off duty') ||
+             n.includes('off day') ||
+             n.includes('outside deployment') ||
+             n.includes('outside')
+    }
 
-    // Find active duty points that are not assigned
+    // Count assigned guards per duty point for the current shift
+    const assignedCounts = new Map<string, number>()
+    dailyAssignments.forEach((a) => {
+      if (isExcluded(a.dutyPoint.name)) return
+      assignedCounts.set(a.dutyPoint.name, (assignedCounts.get(a.dutyPoint.name) || 0) + 1)
+    })
+
+    // Find active duty points below their required headcount
     const uncovered = dutyPoints
       .filter((dp) => {
-        if (!dp.isActive) return false
-        const name = dp.name.toLowerCase()
-        // Exclude off duty and outside deployment from coverage check
-        if (name.includes('off duty') || name.includes('off day') ||
-            name.includes('outside deployment') || name.includes('outside')) {
-          return false
-        }
-        return !assignedPointNames.has(dp.name)
+        if (!dp.isActive || isExcluded(dp.name)) return false
+        const required = dp.requiredGuards ?? 1
+        return (assignedCounts.get(dp.name) || 0) < required
       })
-      .map((dp) => dp.name)
-      .sort()
+      .map((dp) => ({
+        name: dp.name,
+        assigned: assignedCounts.get(dp.name) || 0,
+        required: dp.requiredGuards ?? 1,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
 
     return uncovered
   }, [dailyAssignments, dutyPoints])
@@ -706,23 +707,23 @@ export default function AssignmentsPortalPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <h3 className="text-sm font-bold text-amber-900 dark:text-amber-100">
-                    ⚠️ {uncoveredPosts.length} Uncovered Post{uncoveredPosts.length > 1 ? 's' : ''}
+                    ⚠️ {uncoveredPosts.length} Understaffed Post{uncoveredPosts.length > 1 ? 's' : ''}
                   </h3>
                   <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 rounded-full">
                     Critical
                   </span>
                 </div>
                 <p className="text-xs text-amber-800 dark:text-amber-300 mb-2">
-                  The following duty points have no guards assigned for this shift:
+                  The following duty points are below their required guard count:
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {uncoveredPosts.map((post) => (
                     <span
-                      key={post}
+                      key={post.name}
                       className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700/60 text-xs font-semibold text-amber-900 dark:text-amber-200"
                     >
                       <MapPin className="w-3 h-3" />
-                      {post}
+                      {post.name} <span className="text-amber-600 dark:text-amber-400">({post.assigned}/{post.required})</span>
                     </span>
                   ))}
                 </div>

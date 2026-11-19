@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { LogOut, Sun, Moon } from 'lucide-react'
+import { LogOut, Sun, Moon, Search } from 'lucide-react'
 import { useState } from 'react'
 import { useTheme } from '@/components/theme-provider'
 
@@ -63,6 +63,21 @@ export function DashboardTopBar() {
         </div>
 
         <div className="flex items-center gap-2 md:gap-3 min-w-0">
+          {/* Command Palette Trigger */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => window.dispatchEvent(new Event('open-command-palette'))}
+            className="flex items-center gap-2 h-9 px-3 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 rounded-lg"
+            title="Search pages and guards (⌘K)"
+          >
+            <Search className="h-3.5 w-3.5" />
+            <span className="hidden md:inline">Search</span>
+            <kbd className="hidden lg:inline-flex items-center px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-[10px] font-mono text-slate-400">
+              ⌘K
+            </kbd>
+          </Button>
+
           {/* Theme Toggle Button */}
           <Button
             variant="ghost"

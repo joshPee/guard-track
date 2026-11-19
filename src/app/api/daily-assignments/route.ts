@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { timingSafeEqual } from 'crypto'
 
 const assignmentSchema = z.object({
   guardId: z.string(),
@@ -14,6 +15,22 @@ const assignmentSchema = z.object({
 const batchSchema = z.object({
   batch: z.array(assignmentSchema),
 })
+
+// Writes are allowed for SUPERVISOR sessions OR callers presenting the
+// shared portal token (used by the public /directory supervisor portal).
+function isWriteAuthorized(req: Request, session: { user?: { role?: string } } | null): boolean {
+  if (session?.user?.role === 'SUPERVISOR') return true
+  const expected = process.env.PORTAL_WRITE_TOKEN
+  const provided = req.headers.get('x-portal-token')
+  if (!expected || !provided) return false
+  const a = Buffer.from(provided)
+  const b = Buffer.from(expected)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
+async function getSession() {
+  return getServerSession(authOptions)
+}
 
 export async function GET(req: Request) {
   try {
@@ -47,6 +64,11 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    const session = await getSession()
+    if (!isWriteAuthorized(req, session)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await req.json()
 
     // Handle batch assignment updates
@@ -138,8 +160,8 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session || session.user.role !== 'SUPERVISOR') {
+    const session = await getSession()
+    if (!isWriteAuthorized(req, session)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

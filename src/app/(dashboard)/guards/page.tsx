@@ -37,7 +37,9 @@ import {
   RefreshCw,
   ShieldOff,
   Calendar,
-  Upload
+  Upload,
+  Download,
+  ArrowUpDown
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { PageHeader } from '@/components/ui/page-header'
@@ -66,6 +68,23 @@ interface Guard {
   startDate: string | null
 }
 
+// Human-readable service length from start date, e.g. "2y 3m", "8m", "New"
+function getTenure(startDate: string | null): string | null {
+  if (!startDate) return null
+  const start = new Date(startDate)
+  if (isNaN(start.getTime())) return null
+  const now = new Date()
+  let months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth())
+  if (now.getDate() < start.getDate()) months -= 1
+  if (months < 0) months = 0
+  if (months < 1) return 'New'
+  const years = Math.floor(months / 12)
+  const rem = months % 12
+  if (years === 0) return `${rem}m`
+  if (rem === 0) return `${years}y`
+  return `${years}y ${rem}m`
+}
+
 export default function GuardsPage() {
   const { data: session } = useSession()
   const [guards, setGuards] = useState<Guard[]>([])
@@ -73,6 +92,7 @@ export default function GuardsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL')
   const [shiftTypeFilter, setShiftTypeFilter] = useState<'ALL' | 'DAY' | 'NIGHT'>('ALL')
+  const [sortMode, setSortMode] = useState<'name' | 'badge' | 'newest' | 'status'>('name')
   const [loading, setLoading] = useState(true)
 
   // Dialog states
@@ -104,7 +124,7 @@ export default function GuardsPage() {
   // Reset to page 1 whenever search or status filter changes
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, statusFilter, shiftTypeFilter])
+  }, [searchQuery, statusFilter, shiftTypeFilter, sortMode])
 
   const fetchGuards = async () => {
     try {
@@ -290,7 +310,7 @@ export default function GuardsPage() {
   const [currentPage, setCurrentPage] = useState(1)
 
   const filteredGuards = useMemo(() => {
-    return guards.filter((guard) => {
+    const filtered = guards.filter((guard) => {
       const matchesSearch =
         searchQuery.trim() === '' ||
         guard.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -304,7 +324,66 @@ export default function GuardsPage() {
 
       return matchesSearch && matchesStatus && matchesShiftType
     })
-  }, [guards, searchQuery, statusFilter, shiftTypeFilter])
+
+    const sorted = [...filtered]
+    switch (sortMode) {
+      case 'badge':
+        sorted.sort((a, b) => a.badgeId.localeCompare(b.badgeId, undefined, { numeric: true }))
+        break
+      case 'newest':
+        sorted.sort((a, b) => {
+          const da = a.startDate ? new Date(a.startDate).getTime() : 0
+          const db = b.startDate ? new Date(b.startDate).getTime() : 0
+          return db - da
+        })
+        break
+      case 'status':
+        sorted.sort((a, b) => a.status.localeCompare(b.status) || a.fullName.localeCompare(b.fullName))
+        break
+      default:
+        sorted.sort((a, b) => a.fullName.localeCompare(b.fullName))
+    }
+    return sorted
+  }, [guards, searchQuery, statusFilter, shiftTypeFilter, sortMode])
+
+  // Export filtered guard list as CSV
+  const exportGuardsCSV = () => {
+    if (filteredGuards.length === 0) {
+      toast.warning('No guards to export for the current filter.')
+      return
+    }
+    try {
+      const headers = ['Full Name', 'Badge ID', 'Phone', 'Status', 'Shift Type', 'Duty Point', 'Start Date']
+      const rows = filteredGuards.map((g) => [
+        `"${g.fullName}"`,
+        `"${g.badgeId}"`,
+        `"${g.phone || ''}"`,
+        `"${g.status}"`,
+        `"${g.shiftType === 'DAY' ? 'Day' : g.shiftType === 'NIGHT' ? 'Night' : 'Both'}"`,
+        `"${g.defaultDutyPoint?.name || 'Unassigned'}"`,
+        `"${g.startDate ? new Date(g.startDate).toISOString().slice(0, 10) : ''}"`,
+      ])
+      const csvContent = [
+        'PCC Security Department - Guard Personnel Roster',
+        `Exported: ${new Date().toLocaleString()}`,
+        `Total Guards: ${filteredGuards.length}`,
+        '',
+        headers.join(','),
+        ...rows.map((r) => r.join(',')),
+      ].join('\n')
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `pcc-guard-personnel-${new Date().toISOString().slice(0, 10)}.csv`
+      link.click()
+      URL.revokeObjectURL(url)
+      toast.success('Guard list exported to CSV')
+    } catch {
+      toast.error('Failed to export CSV')
+    }
+  }
 
   // Reset to page 1 whenever filter/search changes
   const totalPages = Math.max(1, Math.ceil(filteredGuards.length / PAGE_SIZE))
@@ -396,14 +475,38 @@ export default function GuardsPage() {
             })}
           </div>
 
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input
-              className="pl-9 h-9 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700"
-              placeholder="Search name or badge ID..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                className="pl-9 h-9 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700"
+                placeholder="Search name or badge ID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <Select value={sortMode} onValueChange={(v) => setSortMode(v as typeof sortMode)}>
+              <SelectTrigger className="h-9 w-[130px] text-xs bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700">
+                <ArrowUpDown className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Name A–Z</SelectItem>
+                <SelectItem value="badge">Badge ID</SelectItem>
+                <SelectItem value="newest">Newest First</SelectItem>
+                <SelectItem value="status">Status</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportGuardsCSV}
+              className="h-9 text-xs gap-1.5 shrink-0"
+              title="Export filtered guard list as CSV"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Export</span>
+            </Button>
           </div>
         </div>
 
@@ -473,6 +576,11 @@ export default function GuardsPage() {
                             <span className="flex items-center gap-1">
                               <Calendar className="h-3 w-3 text-slate-400 shrink-0" />
                               {new Date(guard.startDate).toLocaleDateString()}
+                              {getTenure(guard.startDate) && (
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                                  {getTenure(guard.startDate)}
+                                </span>
+                              )}
                             </span>
                           )}
                         </div>
