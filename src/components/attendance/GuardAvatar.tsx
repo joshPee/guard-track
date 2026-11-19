@@ -15,7 +15,7 @@ export function GuardAvatar({ name, photoUrl, size = 'md', className = '' }: Gua
     >
       {photoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
+        <img src={photoUrl} alt={name} className="w-full h-full object-cover object-top" />
       ) : (
         getInitials(name)
       )}

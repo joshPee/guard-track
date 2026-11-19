@@ -552,7 +552,7 @@ export default function AssignmentsPortalPage() {
                 <img
                   src={assignment.guard.photoUrl}
                   alt={assignment.guard.fullName}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover object-top"
                 />
               ) : (
                 <span className="font-bold text-base text-slate-600 dark:text-slate-300 tracking-wider">

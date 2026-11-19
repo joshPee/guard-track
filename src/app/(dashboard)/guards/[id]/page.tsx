@@ -340,7 +340,7 @@ export default function GuardDetailPage() {
                   <img
                     src={guard.photoUrl}
                     alt={guard.fullName}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover object-top"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-slate-400">
@@ -499,7 +499,7 @@ export default function GuardDetailPage() {
                     <img
                       src={photoPreview || formData.photoUrl}
                       alt="Guard photo preview"
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover object-top"
                     />
                     {uploadingPhoto && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center">

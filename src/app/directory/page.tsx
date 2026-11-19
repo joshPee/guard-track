@@ -1301,7 +1301,7 @@ export default function GuardDirectoryPage() {
                                 <img
                                   src={guard.photoUrl}
                                   alt={guard.fullName}
-                                  className="w-full h-full object-cover"
+                                  className="w-full h-full object-cover object-top"
                                 />
                               ) : (
                                 getInitials(guard.fullName)
@@ -1503,7 +1503,7 @@ export default function GuardDirectoryPage() {
                           <img
                             src={guard.photoUrl}
                             alt={guard.fullName}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover object-top"
                           />
                         ) : (
                           <span className="font-bold text-base text-slate-600 dark:text-slate-300 tracking-wider">
@@ -1672,7 +1672,7 @@ export default function GuardDirectoryPage() {
                         <img
                           src={selectedGuardForDetail.photoUrl}
                           alt={selectedGuardForDetail.fullName}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover object-top"
                         />
                       ) : (
                         <span className="font-bold text-sm text-slate-600 dark:text-slate-300 tracking-wider">

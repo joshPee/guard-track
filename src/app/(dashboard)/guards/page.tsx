@@ -538,7 +538,7 @@ export default function GuardsPage() {
                           <img
                             src={guard.photoUrl}
                             alt={guard.fullName}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover object-top"
                           />
                         ) : (
                           guard.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
@@ -745,7 +745,7 @@ export default function GuardsPage() {
                     <img
                       src={photoPreview || formData.photoUrl}
                       alt="Guard photo preview"
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover object-top"
                     />
                     {uploadingPhoto && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
