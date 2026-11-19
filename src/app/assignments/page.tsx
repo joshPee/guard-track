@@ -431,7 +431,7 @@ export default function AssignmentsPortalPage() {
     })
 
     // Build WhatsApp message
-    let message = `🏛️ *PCC DUTY ROSTER*\n`
+    let message = `🏛️ *PCC SECURITY GUARD ROSTER*\n`
     message += `📅 ${dateStr}\n`
     message += `🕐 ${selectedShiftObj?.name || 'Selected Shift'}\n\n`
 
@@ -622,7 +622,7 @@ export default function AssignmentsPortalPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans overflow-x-clip">
       {/* View-Only Top Navbar (No page switcher bar) */}
       <PortalNavbar
         currentPage="assignments"

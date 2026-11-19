@@ -35,7 +35,12 @@ import {
   Trash2,
   Loader2,
   AlertCircle,
-  AlertTriangle
+  AlertTriangle,
+  DoorOpen,
+  Landmark,
+  Home,
+  Warehouse,
+  Building2
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { PageHeader } from '@/components/ui/page-header'
@@ -93,6 +98,17 @@ const ZONE_BADGES: Record<string, string> = {
   'Auditoriums': 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 dark:border-blue-800',
   'PSTM Area': 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-200 dark:border-purple-800',
   'Residential/Admin Cluster': 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+}
+
+// Zone-aware icons for duty posts
+function getZoneIcon(zoneName?: string) {
+  const z = (zoneName || '').toLowerCase()
+  if (z.includes('gate') || z.includes('front') || z.includes('entrance')) return DoorOpen
+  if (z.includes('auditorium') || z.includes('assembly') || z.includes('hall')) return Landmark
+  if (z.includes('residential') || z.includes('admin') || z.includes('quarter') || z.includes('staff')) return Home
+  if (z.includes('storage') || z.includes('water') || z.includes('utility') || z.includes('plant')) return Warehouse
+  if (z.includes('hostel') || z.includes('pstm') || z.includes('block') || z.includes('lecture')) return Building2
+  return MapPin
 }
 
 export default function DutyPointsPage() {
@@ -437,9 +453,14 @@ export default function DutyPointsPage() {
                       {/* Post Name */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border border-teal-200/60 dark:border-teal-800/60 shrink-0">
-                            <Building className="h-4 w-4" />
-                          </div>
+                          {(() => {
+                            const ZoneIcon = getZoneIcon(dp.zone?.name)
+                            return (
+                              <div className="p-2 rounded-lg bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border border-teal-200/60 dark:border-teal-800/60 shrink-0">
+                                <ZoneIcon className="h-4 w-4" />
+                              </div>
+                            )
+                          })()}
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-slate-900 dark:text-white">

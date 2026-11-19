@@ -5,10 +5,12 @@ import {
   Users,
   Shield,
   Printer,
-  Sparkles,
+  Sun,
+  Moon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useTheme } from '@/components/theme-provider'
 
 interface PortalNavbarProps {
   currentPage?: 'directory' | 'assignments'
@@ -25,6 +27,8 @@ export function PortalNavbar({
   showPageSwitcher = false,
   subtitle,
 }: PortalNavbarProps) {
+  const { resolvedTheme, toggleTheme } = useTheme()
+
   return (
     <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-white/95 dark:bg-slate-900/95 border-b border-slate-200/80 dark:border-slate-800 transition-colors shadow-xs print:hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -83,6 +87,22 @@ export function PortalNavbar({
           {/* Action Tools */}
           <div className="flex items-center gap-2 ml-auto shrink-0">
             {extraActions}
+
+            {/* Theme Toggle */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              className="h-9 w-9 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              title={resolvedTheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              aria-label="Toggle theme"
+            >
+              {resolvedTheme === 'dark' ? (
+                <Sun className="h-4 w-4 text-amber-400" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+            </Button>
 
             {onPrint && (
               <Button

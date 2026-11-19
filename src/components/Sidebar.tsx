@@ -20,7 +20,7 @@ import {
   ClipboardList,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 function getNavigationSections(role?: string) {
   const isSupervisor = role === 'SUPERVISOR'
@@ -69,8 +69,28 @@ export function DashboardSidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [pendingLeaveCount, setPendingLeaveCount] = useState(0)
+
+  // Fetch pending leave approvals count for the sidebar badge
+  useEffect(() => {
+    if (!session) return
+    let cancelled = false
+    fetch('/api/leave?status=PENDING')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.stats?.pending != null) {
+          setPendingLeaveCount(data.stats.pending)
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [session, pathname])
 
   const sections = getNavigationSections(session?.user?.role)
+
+  const badges: Record<string, number> = {
+    'Leave & Exeats': pendingLeaveCount,
+  }
 
   return (
     // Only visible on desktop (lg+). Mobile uses MobileBottomNav instead.
@@ -124,7 +144,7 @@ export function DashboardSidebar() {
                     key={item.name}
                     href={item.href}
                     className={cn(
-                      'flex items-center px-3 py-2.5 text-[13px] font-medium rounded-lg transition-all duration-200',
+                      'relative flex items-center px-3 py-2.5 text-[13px] font-medium rounded-lg transition-all duration-200',
                       isActive
                         ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-semibold nav-active-indicator'
                         : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white hover:translate-x-0.5',
@@ -133,11 +153,23 @@ export function DashboardSidebar() {
                     title={isCollapsed ? item.name : undefined}
                   >
                     <item.icon className={cn(
-                      'h-[18px] w-[18px] transition-colors',
+                      'h-[18px] w-[18px] transition-colors shrink-0',
                       !isCollapsed && 'mr-3',
                       isActive ? 'text-emerald-600 dark:text-emerald-400' : ''
                     )} />
-                    {!isCollapsed && item.name}
+                    {!isCollapsed && (
+                      <span className="flex-1 truncate">{item.name}</span>
+                    )}
+                    {!isCollapsed && (badges[item.name] ?? 0) > 0 && (
+                      <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold">
+                        {badges[item.name]}
+                      </span>
+                    )}
+                    {isCollapsed && (badges[item.name] ?? 0) > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[16px] h-[16px] px-0.5 rounded-full bg-rose-500 text-white text-[9px] font-bold">
+                        {badges[item.name]}
+                      </span>
+                    )}
                   </Link>
                 )
               })}
