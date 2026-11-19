@@ -25,9 +25,7 @@ import {
   Moon,
   X,
   Building2,
-  RefreshCw,
   AlertTriangle,
-  MessageCircle,
   Layers,
 } from 'lucide-react'
 import { PortalNavbar } from '@/components/PortalNavbar'
@@ -608,19 +606,9 @@ export default function AssignmentsPortalPage() {
               className="h-9 text-xs border-green-500/50 dark:border-green-600/50 text-green-700 dark:text-green-400 gap-1.5 hover:bg-green-50 dark:hover:bg-green-950/30"
               title="Share roster to WhatsApp"
             >
-              <MessageCircle className="w-3.5 h-3.5" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/whatsapp.png" alt="WhatsApp" className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">WhatsApp</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fetchDailyAssignments(true)}
-              disabled={refreshing}
-              className="h-9 text-xs border-slate-200 dark:border-slate-800"
-              title="Refresh assignments"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline ml-1.5">Refresh</span>
             </Button>
           </>
         }
