@@ -325,6 +325,47 @@ export default function AssignmentsPortalPage() {
     return sortedGrouped
   }, [filteredAssignments, dutyPoints, zones])
 
+  // Print roster rows: flat list grouped by duty point with running serial numbers
+  const printRosterRows = useMemo(() => {
+    const isOffDuty = (name: string) => {
+      const n = name.toLowerCase()
+      return n.includes('off duty') || n.includes('off day')
+    }
+    const isOutside = (name: string) => {
+      const n = name.toLowerCase()
+      return n.includes('outside deployment') || n.includes('outside')
+    }
+
+    const groups = new Map<string, DailyAssignment[]>()
+    filteredAssignments.forEach((a) => {
+      const name = a.dutyPoint.name
+      if (!groups.has(name)) groups.set(name, [])
+      groups.get(name)!.push(a)
+    })
+
+    const sortedPoints = Array.from(groups.keys()).sort((a, b) => {
+      const aOff = isOffDuty(a) ? 2 : isOutside(a) ? 1 : 0
+      const bOff = isOffDuty(b) ? 2 : isOutside(b) ? 1 : 0
+      if (aOff !== bOff) return aOff - bOff
+      return a.localeCompare(b)
+    })
+
+    const rows: Array<
+      | { type: 'header'; point: string; count: number }
+      | { type: 'row'; sn: number; assignment: DailyAssignment }
+    > = []
+    let sn = 0
+    sortedPoints.forEach((point) => {
+      const guards = groups.get(point)!.sort((a, b) => a.guard.fullName.localeCompare(b.guard.fullName))
+      rows.push({ type: 'header', point, count: guards.length })
+      guards.forEach((assignment) => {
+        sn += 1
+        rows.push({ type: 'row', sn, assignment })
+      })
+    })
+    return rows
+  }, [filteredAssignments])
+
   // Summary statistics
   const stats = useMemo(() => {
     const offDutyCount = dailyAssignments.filter((a) =>
@@ -901,7 +942,7 @@ export default function AssignmentsPortalPage() {
         </Card>
 
         {/* Operational KPI Counters */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:grid-cols-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:grid-cols-4 print:hidden">
           <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
             <CardContent className="p-3.5 text-center">
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Assigned</p>
@@ -947,7 +988,7 @@ export default function AssignmentsPortalPage() {
 
         {/* Split View: Day vs Night Side-by-Side */}
         {splitView && !loading && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:hidden">
             {/* Day Shift Column */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 px-2">
@@ -982,7 +1023,8 @@ export default function AssignmentsPortalPage() {
           </div>
         )}
 
-        {/* Content Section: Skeletons, Empty State, or Card Grid */}
+        {/* Content Section: Skeletons, Empty State, or Card Grid (screen only) */}
+        <div className="print:hidden">
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -1064,6 +1106,64 @@ export default function AssignmentsPortalPage() {
             {filteredAssignments.map((assignment) => renderAssignmentCard(assignment))}
           </div>
         )}
+        </div>
+
+        {/* Printable Roster Table — official tabular layout, no photos */}
+        <div className="hidden print:block text-black">
+          <table className="w-full border-collapse text-[11px] leading-tight">
+            <thead>
+              <tr className="bg-slate-100">
+                <th className="border border-black px-2 py-1.5 text-left font-bold w-10">S/N</th>
+                <th className="border border-black px-2 py-1.5 text-left font-bold">Guard Name</th>
+                <th className="border border-black px-2 py-1.5 text-left font-bold w-24">Badge ID</th>
+                <th className="border border-black px-2 py-1.5 text-left font-bold w-32">Phone</th>
+                <th className="border border-black px-2 py-1.5 text-left font-bold w-28">Shift Type</th>
+              </tr>
+            </thead>
+            <tbody>
+              {printRosterRows.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="border border-black px-2 py-3 text-center text-slate-500">
+                    No duty assignments found for the selected date and shift.
+                  </td>
+                </tr>
+              )}
+              {printRosterRows.map((row, i) =>
+                row.type === 'header' ? (
+                  <tr key={`point-${row.point}-${i}`}>
+                    <td
+                      colSpan={5}
+                      className="border border-black bg-slate-50 px-2 py-1 font-bold uppercase tracking-wide"
+                    >
+                      {row.point}{' '}
+                      <span className="font-normal normal-case">({row.count} guard{row.count !== 1 ? 's' : ''})</span>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={row.assignment.id}>
+                    <td className="border border-black px-2 py-1 text-center">{row.sn}</td>
+                    <td className="border border-black px-2 py-1 font-semibold">{row.assignment.guard.fullName}</td>
+                    <td className="border border-black px-2 py-1">{row.assignment.guard.badgeId}</td>
+                    <td className="border border-black px-2 py-1">{row.assignment.guard.phone || '—'}</td>
+                    <td className="border border-black px-2 py-1">
+                      {row.assignment.guard.shiftType === 'DAY'
+                        ? 'Day'
+                        : row.assignment.guard.shiftType === 'NIGHT'
+                          ? 'Night'
+                          : 'Both'}
+                    </td>
+                  </tr>
+                )
+              )}
+            </tbody>
+          </table>
+          <p className="mt-2 text-[10px] text-slate-600">
+            Total: {filteredAssignments.length} guard{filteredAssignments.length !== 1 ? 's' : ''}
+            {selectedShiftObj
+              ? ` · Shift: ${selectedShiftObj.name} (${selectedShiftObj.startTime} - ${selectedShiftObj.endTime})`
+              : ''}
+          </p>
+        </div>
 
         {/* Printable Official Sign-Off Footer */}
         <div className="hidden print:block pt-12 text-xs text-black border-t border-slate-300 mt-8">
