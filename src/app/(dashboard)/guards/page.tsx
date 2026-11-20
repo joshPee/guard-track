@@ -65,6 +65,8 @@ interface Guard {
   defaultDutyPoint: { id?: string; name: string } | null
   photoUrl: string | null
   shiftType: string
+  designation: string | null
+  excludeFromDuty: boolean
   startDate: string | null
 }
 
@@ -113,6 +115,8 @@ export default function GuardsPage() {
     defaultDutyPointId: '',
     photoUrl: '',
     shiftType: 'BOTH',
+    designation: '',
+    excludeFromDuty: false,
     startDate: '',
   })
 
@@ -168,6 +172,8 @@ export default function GuardsPage() {
       defaultDutyPointId: dutyPoints[0]?.id || '',
       photoUrl: '',
       shiftType: 'BOTH',
+      designation: '',
+      excludeFromDuty: false,
       startDate: new Date().toISOString().split('T')[0],
     })
     setFormError('')
@@ -185,6 +191,8 @@ export default function GuardsPage() {
       defaultDutyPointId: guard.defaultDutyPointId || guard.defaultDutyPoint?.id || '',
       photoUrl: guard.photoUrl || '',
       shiftType: guard.shiftType || 'BOTH',
+      designation: guard.designation || '',
+      excludeFromDuty: guard.excludeFromDuty || false,
       startDate: guard.startDate ? new Date(guard.startDate).toISOString().split('T')[0] : '',
     })
     setFormError('')
@@ -237,6 +245,8 @@ export default function GuardsPage() {
           defaultDutyPointId: formData.defaultDutyPointId || null,
           photoUrl: formData.photoUrl || null,
           shiftType: formData.shiftType,
+          designation: formData.designation || null,
+          excludeFromDuty: formData.excludeFromDuty,
           startDate: formData.startDate ? new Date(formData.startDate) : null,
         }),
       })
@@ -271,6 +281,8 @@ export default function GuardsPage() {
           status: 'ACTIVE',
           defaultDutyPointId: guard.defaultDutyPointId || guard.defaultDutyPoint?.id || null,
           shiftType: guard.shiftType || 'BOTH',
+          designation: guard.designation || null,
+          excludeFromDuty: guard.excludeFromDuty || false,
           startDate: guard.startDate,
         }),
       })
@@ -295,8 +307,13 @@ export default function GuardsPage() {
         throw new Error('Failed to delete guard')
       }
 
+      const data = await res.json().catch(() => ({}))
       setDeletingGuard(null)
-      toast.success('Guard removed from active roster')
+      toast.success(
+        data.deactivated
+          ? 'Guard has related records — marked INACTIVE to preserve history'
+          : 'Guard permanently deleted'
+      )
       await fetchGuards()
     } catch (err: any) {
       toast.error(err.message)
@@ -430,49 +447,26 @@ export default function GuardsPage() {
         {/* Toolbar: Search + Status Tabs + Shift Type Filter */}
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-1.5 flex-wrap">
-            {(['ALL', 'ACTIVE', 'INACTIVE'] as const).map((st) => {
-              const count =
-                st === 'ALL'
-                  ? guards.length
-                  : guards.filter((g) => g.status === st).length
-              const isSelected = statusFilter === st
-
-              return (
-                <button
-                  key={st}
-                  onClick={() => setStatusFilter(st)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-150 ${
-                    isSelected
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  {st === 'ALL' ? 'All Personnel' : st === 'ACTIVE' ? 'Active' : 'Inactive'} ({count})
-                </button>
-              )
-            })}
-            <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1" />
-            {(['ALL', 'DAY', 'NIGHT'] as const).map((st) => {
-              const count =
-                st === 'ALL'
-                  ? guards.length
-                  : guards.filter((g) => g.shiftType === st).length
-              const isSelected = shiftTypeFilter === st
-
-              return (
-                <button
-                  key={st}
-                  onClick={() => setShiftTypeFilter(st)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-150 ${
-                    isSelected
-                      ? 'bg-purple-600 text-white shadow-sm'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  {st === 'ALL' ? 'All Shifts' : st === 'DAY' ? 'Day Shift' : 'Night Shift'} ({count})
-                </button>
-              )
-            })}
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+              <SelectTrigger className="h-8 w-[140px] text-xs bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Personnel ({guards.length})</SelectItem>
+                <SelectItem value="ACTIVE">Active ({guards.filter((g) => g.status === 'ACTIVE').length})</SelectItem>
+                <SelectItem value="INACTIVE">Inactive ({guards.filter((g) => g.status === 'INACTIVE').length})</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={shiftTypeFilter} onValueChange={(v) => setShiftTypeFilter(v as typeof shiftTypeFilter)}>
+              <SelectTrigger className="h-8 w-[130px] text-xs bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Shifts ({guards.length})</SelectItem>
+                <SelectItem value="DAY">Day Shift ({guards.filter((g) => g.shiftType === 'DAY').length})</SelectItem>
+                <SelectItem value="NIGHT">Night Shift ({guards.filter((g) => g.shiftType === 'NIGHT').length})</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -552,6 +546,16 @@ export default function GuardsPage() {
                           <span className="font-mono text-xs text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded font-medium">
                             {guard.badgeId}
                           </span>
+                          {guard.designation && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/60">
+                              ★ {guard.designation}
+                            </span>
+                          )}
+                          {guard.excludeFromDuty && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                              Non-duty
+                            </span>
+                          )}
                           <StatusBadge status={guard.status} />
                           {guard.shiftType && guard.shiftType !== 'BOTH' && (
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${guard.shiftType === 'DAY' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'}`}>
@@ -612,15 +616,28 @@ export default function GuardsPage() {
                             <Edit2 className="h-3.5 w-3.5" />
                             Edit
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setDeletingGuard(guard)}
-                            className="h-8 w-8 text-slate-400 hover:text-rose-600"
-                            title="Deactivate / Delete Guard"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          {guard.status === 'INACTIVE' ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setDeletingGuard(guard)}
+                              className="h-8 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 gap-1"
+                              title="Permanently delete this guard"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Delete
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeletingGuard(guard)}
+                              className="h-8 w-8 text-slate-400 hover:text-rose-600"
+                              title="Deactivate / Delete Guard"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                         </>
                       )}
                       <Link
@@ -886,6 +903,39 @@ export default function GuardsPage() {
             </div>
 
             <div className="space-y-1.5">
+              <Label htmlFor="designation" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Designation / Title
+              </Label>
+              <Input
+                id="designation"
+                type="text"
+                placeholder="e.g. Day Supervisor, 2nd in Command"
+                value={formData.designation}
+                onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
+                className="text-sm bg-slate-50 dark:bg-slate-800/80"
+              />
+              <p className="text-[10px] text-slate-400">
+                Optional title shown as a badge on rosters
+              </p>
+            </div>
+
+            <div className="flex items-start gap-2.5 p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40">
+              <input
+                id="excludeFromDuty"
+                type="checkbox"
+                checked={formData.excludeFromDuty}
+                onChange={(e) => setFormData({ ...formData, excludeFromDuty: e.target.checked })}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="excludeFromDuty" className="text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
+                <span className="font-semibold">Non-duty staff</span>
+                <span className="block text-[10px] text-slate-400 mt-0.5">
+                  Exclude from duty assignments and rosters (e.g. senior supervisors who don't take posts)
+                </span>
+              </label>
+            </div>
+
+            <div className="space-y-1.5">
               <Label htmlFor="startDate" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
                 Start Date
               </Label>
@@ -960,7 +1010,9 @@ export default function GuardsPage() {
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
               Are you sure you want to remove <strong>{deletingGuard?.fullName}</strong> ({deletingGuard?.badgeId})?
-              If this guard has past attendance records, their status will be set to <strong>INACTIVE</strong> to preserve audit logs.
+              {deletingGuard?.status === 'INACTIVE'
+                ? ' This guard is inactive — they will be permanently deleted unless they have related records, in which case they remain inactive to preserve history.'
+                : ' If this guard has past attendance or leave records, their status will be set to INACTIVE to preserve history.'}
             </DialogDescription>
           </DialogHeader>
 

@@ -28,6 +28,7 @@ export async function GET(req: Request) {
     const statusParam = searchParams.get('status') || 'ALL'
     const typeParam = searchParams.get('type') || 'ALL'
     const search = searchParams.get('search') || ''
+    const guardIdParam = searchParams.get('guardId') || ''
 
     // Query leave records with guard info
     const rows = await prisma.$queryRawUnsafe<any[]>(`
@@ -90,6 +91,10 @@ export async function GET(req: Request) {
 
     if (typeParam !== 'ALL') {
       filtered = filtered.filter(r => r.type === typeParam)
+    }
+
+    if (guardIdParam) {
+      filtered = filtered.filter(r => r.guardId === guardIdParam)
     }
 
     if (search.trim()) {

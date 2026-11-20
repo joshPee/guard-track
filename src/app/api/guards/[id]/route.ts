@@ -11,6 +11,8 @@ const guardUpdateSchema = z.object({
   defaultDutyPointId: z.string().nullish(),
   photoUrl: z.string().nullish(),
   shiftType: z.enum(['DAY', 'NIGHT', 'BOTH']).optional(),
+  designation: z.string().nullish(),
+  excludeFromDuty: z.boolean().optional(),
   status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
   startDate: z.string().nullish(),
 })
@@ -91,11 +93,23 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    await prisma.guard.delete({
-      where: { id: params.id },
-    })
-
-    return NextResponse.json({ success: true })
+    try {
+      await prisma.guard.delete({
+        where: { id: params.id },
+      })
+      return NextResponse.json({ success: true })
+    } catch (deleteError: any) {
+      // If the guard has related records (leave, assignments, attendance),
+      // preserve history by deactivating instead of hard-deleting.
+      if (deleteError?.code === 'P2003') {
+        await prisma.guard.update({
+          where: { id: params.id },
+          data: { status: 'INACTIVE' },
+        })
+        return NextResponse.json({ success: true, deactivated: true })
+      }
+      throw deleteError
+    }
   } catch (error) {
     console.error('Error deleting guard:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

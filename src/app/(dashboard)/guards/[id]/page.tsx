@@ -54,6 +54,8 @@ interface Guard {
   defaultDutyPoint: { id?: string; name: string } | null
   photoUrl: string | null
   shiftType: string
+  designation: string | null
+  excludeFromDuty: boolean
   startDate: string | null
   createdAt: string
   updatedAt: string
@@ -74,6 +76,30 @@ interface AttendanceRecord {
   shift: { name: string }
 }
 
+interface LeaveRecord {
+  id: string
+  type: string
+  startDate: string
+  endDate: string
+  reason: string | null
+  refNumber: string | null
+  status: string
+}
+
+function formatTenure(startDate: string | null) {
+  if (!startDate) return null
+  const start = new Date(startDate)
+  const now = new Date()
+  let months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth())
+  if (now.getDate() < start.getDate()) months--
+  if (months < 0) return null
+  if (months < 1) return 'New'
+  const years = Math.floor(months / 12)
+  const rem = months % 12
+  if (years === 0) return `${rem} mo`
+  return rem === 0 ? `${years} yr` : `${years} yr ${rem} mo`
+}
+
 export default function GuardDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -81,6 +107,7 @@ export default function GuardDetailPage() {
   const [guard, setGuard] = useState<Guard | null>(null)
   const [dutyPoints, setDutyPoints] = useState<DutyPoint[]>([])
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([])
+  const [leaveRecords, setLeaveRecords] = useState<LeaveRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -97,6 +124,8 @@ export default function GuardDetailPage() {
     defaultDutyPointId: '',
     photoUrl: '',
     shiftType: 'BOTH',
+    designation: '',
+    excludeFromDuty: false,
     startDate: '',
   })
 
@@ -107,6 +136,7 @@ export default function GuardDetailPage() {
       fetchGuard()
       fetchDutyPoints()
       fetchAttendanceHistory()
+      fetchLeaveRecords()
     }
   }, [params.id])
 
@@ -148,6 +178,18 @@ export default function GuardDetailPage() {
     }
   }
 
+  const fetchLeaveRecords = async () => {
+    try {
+      const res = await fetch(`/api/leave?guardId=${params.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setLeaveRecords(data.records || [])
+      }
+    } catch (error) {
+      console.error('Error fetching leave records:', error)
+    }
+  }
+
   const handleEdit = () => {
     if (!guard) return
     setFormData({
@@ -158,6 +200,8 @@ export default function GuardDetailPage() {
       defaultDutyPointId: guard.defaultDutyPointId || guard.defaultDutyPoint?.id || '',
       photoUrl: guard.photoUrl || '',
       shiftType: guard.shiftType || 'BOTH',
+      designation: guard.designation || '',
+      excludeFromDuty: guard.excludeFromDuty || false,
       startDate: guard.startDate ? new Date(guard.startDate).toISOString().split('T')[0] : '',
     })
     setFormError('')
@@ -326,96 +370,171 @@ export default function GuardDetailPage() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Guard Profile Card */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-base">Guard Profile</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      {/* Profile Hero */}
+      <Card className="overflow-hidden border-slate-200 dark:border-slate-800">
+        <div className="h-16 sm:h-20 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700" />
+        <CardContent className="px-4 sm:px-6 pb-5">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-10 sm:-mt-12">
             {/* Photo */}
-            <div className="flex justify-center">
-              <div className="w-32 h-32 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 border-4 border-slate-200 dark:border-slate-700">
-                {guard.photoUrl ? (
-                  <img
-                    src={guard.photoUrl}
-                    alt={guard.fullName}
-                    className="w-full h-full object-cover object-top"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-400">
-                    <User className="h-12 w-12" />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Basic Info */}
-            <div className="space-y-3">
-              <div>
-                <Label className="text-xs text-slate-500">Full Name</Label>
-                <p className="font-semibold text-sm">{guard.fullName}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-slate-500">Badge ID</Label>
-                <p className="font-mono text-sm">{guard.badgeId}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-slate-500">Phone</Label>
-                <p className="font-mono text-sm">{guard.phone || 'Not provided'}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-slate-500">Shift Assignment</Label>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-bold px-2 py-1 rounded ${
-                    guard.shiftType === 'DAY' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' :
-                    guard.shiftType === 'NIGHT' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300' :
-                    'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                  }`}>
-                    {shiftTypeLabel}
-                  </span>
-                </div>
-              </div>
-              <div>
-                <Label className="text-xs text-slate-500">Default Duty Point</Label>
-                <p className="text-sm flex items-center gap-1">
-                  <MapPin className="h-3 w-3 text-slate-400" />
-                  {guard.defaultDutyPoint?.name || 'Unassigned'}
-                </p>
-              </div>
-              <div>
-                <Label className="text-xs text-slate-500">Status</Label>
-                <StatusBadge status={guard.status} />
-              </div>
-              {guard.startDate && (
-                <div>
-                  <Label className="text-xs text-slate-500">Start Date</Label>
-                  <p className="text-sm flex items-center gap-1">
-                    <Calendar className="h-3 w-3 text-slate-400" />
-                    {new Date(guard.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </p>
+            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 border-4 border-white dark:border-slate-900 shadow-lg shrink-0 self-center sm:self-auto">
+              {guard.photoUrl ? (
+                <img
+                  src={guard.photoUrl}
+                  alt={guard.fullName}
+                  className="w-full h-full object-cover object-top"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-slate-400">
+                  <User className="h-10 w-10" />
                 </div>
               )}
             </div>
 
-            {/* Stats */}
-            <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
-              <div className="grid grid-cols-2 gap-2 text-center">
-                <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{attendanceHistory.length}</p>
-                  <p className="text-xs text-slate-500">Records</p>
-                </div>
-                <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                    {attendanceHistory.filter(r => r.status === 'PRESENT').length}
-                  </p>
-                  <p className="text-xs text-slate-500">Present</p>
-                </div>
+            {/* Identity */}
+            <div className="flex-1 min-w-0 text-center sm:text-left">
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+                  {guard.fullName}
+                </h2>
+                <StatusBadge status={guard.status} />
+              </div>
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 mt-2">
+                <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-300">
+                  {guard.badgeId}
+                </span>
+                <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                  guard.shiftType === 'DAY'
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                    : guard.shiftType === 'NIGHT'
+                    ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
+                    : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                }`}>
+                  {shiftTypeLabel}
+                </span>
+                {formatTenure(guard.startDate) && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-200/60 dark:border-emerald-800/60">
+                    <Calendar className="h-3 w-3" />
+                    {formatTenure(guard.startDate)} service
+                  </span>
+                )}
+                {guard.designation && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 px-2 py-0.5 rounded-md border border-amber-200/70 dark:border-amber-800/60">
+                    ★ {guard.designation}
+                  </span>
+                )}
+                {guard.excludeFromDuty && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+                    Non-duty staff
+                  </span>
+                )}
               </div>
             </div>
-          </CardContent>
-        </Card>
 
+            {/* Quick contact actions */}
+            {guard.phone && (
+              <div className="flex items-center justify-center gap-2 shrink-0">
+                <Button variant="outline" size="sm" asChild className="h-8 text-xs">
+                  <a href={`tel:${guard.phone}`}>
+                    <Phone className="h-3.5 w-3.5 mr-1.5" />
+                    Call
+                  </a>
+                </Button>
+                <Button
+                  size="sm"
+                  asChild
+                  className="h-8 text-xs bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <a
+                    href={`https://wa.me/${guard.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hello ${guard.fullName}, this is PCC Security.`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/whatsapp.png" alt="" className="w-3.5 h-3.5 mr-1.5" />
+                    WhatsApp
+                  </a>
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Detail grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <div>
+              <p className="text-[10px] uppercase tracking-wide font-semibold text-slate-400">Phone</p>
+              <p className="text-sm font-mono font-medium text-slate-700 dark:text-slate-200 mt-0.5">
+                {guard.phone || '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wide font-semibold text-slate-400">Default Post</p>
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mt-0.5 flex items-center gap-1">
+                <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
+                <span className="truncate">{guard.defaultDutyPoint?.name || 'Unassigned'}</span>
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wide font-semibold text-slate-400">Start Date</p>
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mt-0.5">
+                {guard.startDate
+                  ? new Date(guard.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                  : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wide font-semibold text-slate-400">On Record Since</p>
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mt-0.5">
+                {new Date(guard.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Attendance Stats */}
+      {(() => {
+        const counted = attendanceHistory.filter(r => r.status === 'PRESENT' || r.status === 'ABSENT')
+        const present = counted.filter(r => r.status === 'PRESENT').length
+        const absent = counted.filter(r => r.status === 'ABSENT').length
+        const late = attendanceHistory.filter(r => r.minutesLate > 0).length
+        const rate = counted.length > 0 ? Math.round((present / counted.length) * 100) : null
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Card className="border-slate-200 dark:border-slate-800">
+              <CardContent className="p-3.5 text-center">
+                <p className="text-[10px] uppercase tracking-wide font-semibold text-slate-400">Attendance Rate</p>
+                <p className={`text-2xl font-black mt-1 ${rate === null ? 'text-slate-400' : rate >= 90 ? 'text-emerald-600 dark:text-emerald-400' : rate >= 75 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                  {rate === null ? '—' : `${rate}%`}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">of counted shifts</p>
+              </CardContent>
+            </Card>
+            <Card className="border-slate-200 dark:border-slate-800">
+              <CardContent className="p-3.5 text-center">
+                <p className="text-[10px] uppercase tracking-wide font-semibold text-slate-400">Present</p>
+                <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">{present}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">shifts</p>
+              </CardContent>
+            </Card>
+            <Card className="border-slate-200 dark:border-slate-800">
+              <CardContent className="p-3.5 text-center">
+                <p className="text-[10px] uppercase tracking-wide font-semibold text-slate-400">Absent</p>
+                <p className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">{absent}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">shifts</p>
+              </CardContent>
+            </Card>
+            <Card className="border-slate-200 dark:border-slate-800">
+              <CardContent className="p-3.5 text-center">
+                <p className="text-[10px] uppercase tracking-wide font-semibold text-slate-400">Late Arrivals</p>
+                <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">{late}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">records</p>
+              </CardContent>
+            </Card>
+          </div>
+        )
+      })()}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Attendance History */}
         <Card className="lg:col-span-2">
           <CardHeader>
@@ -466,6 +585,54 @@ export default function GuardDetailPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Leave & Exeats */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Leave &amp; Exeats</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {leaveRecords.length === 0 ? (
+              <div className="text-center py-8 text-slate-400">
+                <Calendar className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No leave records</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {leaveRecords.map((record) => {
+                  const start = new Date(record.startDate)
+                  const end = new Date(record.endDate)
+                  const isActive = new Date() >= start && new Date() <= end
+                  return (
+                    <div
+                      key={record.id}
+                      className="p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                          {record.type.replace(/_/g, ' ')}
+                        </span>
+                        <StatusBadge status={record.status} />
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {isActive && record.status === 'APPROVED' && (
+                          <span className="ml-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">· Active now</span>
+                        )}
+                      </p>
+                      {record.refNumber && (
+                        <p className="text-[10px] font-mono text-slate-400 mt-0.5">{record.refNumber}</p>
+                      )}
+                      {record.reason && (
+                        <p className="text-xs text-slate-500 mt-1 line-clamp-2">{record.reason}</p>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </CardContent>
@@ -637,6 +804,36 @@ export default function GuardDetailPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="designation" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Designation / Title
+              </Label>
+              <Input
+                id="designation"
+                type="text"
+                placeholder="e.g. Day Supervisor, 2nd in Command"
+                value={formData.designation}
+                onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
+                className="text-sm bg-slate-50 dark:bg-slate-800/80"
+              />
+            </div>
+
+            <div className="flex items-start gap-2.5 p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40">
+              <input
+                id="excludeFromDuty"
+                type="checkbox"
+                checked={formData.excludeFromDuty}
+                onChange={(e) => setFormData({ ...formData, excludeFromDuty: e.target.checked })}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="excludeFromDuty" className="text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
+                <span className="font-semibold">Non-duty staff</span>
+                <span className="block text-[10px] text-slate-400 mt-0.5">
+                  Exclude from duty assignments and rosters
+                </span>
+              </label>
             </div>
 
             <div className="space-y-1.5">

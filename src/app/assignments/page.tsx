@@ -68,6 +68,8 @@ interface DailyAssignment {
     phone: string | null
     photoUrl: string | null
     shiftType: string
+    designation: string | null
+    excludeFromDuty: boolean
   }
   dutyPoint: {
     id?: string
@@ -285,6 +287,9 @@ export default function AssignmentsPortalPage() {
   const filteredAssignments = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     return dailyAssignments.filter((assignment) => {
+      // Non-duty staff never appear on the roster
+      if (assignment.guard.excludeFromDuty) return false
+
       const isOutside =
         assignment.dutyPoint.name.toLowerCase().includes('outside deployment') ||
         assignment.dutyPoint.name.toLowerCase().includes('outside')
@@ -572,6 +577,13 @@ export default function AssignmentsPortalPage() {
                 {assignment.guard.badgeId}
               </span>
             </div>
+            {assignment.guard.designation && (
+              <div>
+                <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/60">
+                  ★ {assignment.guard.designation}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Shift Badge (hidden for outside deployed guards) & Contact Phone */}

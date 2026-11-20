@@ -54,6 +54,8 @@ interface Guard {
   phone: string | null
   photoUrl: string | null
   shiftType: string
+  designation: string | null
+  excludeFromDuty: boolean
   defaultDutyPointId: string | null
   defaultDutyPoint: { id: string; name: string } | null
   startDate: string | null
@@ -227,6 +229,9 @@ export default function GuardDirectoryPage() {
     const isDayShift = selectedShiftObj?.name.toLowerCase().includes('day') ?? true
 
     return guards.filter((guard) => {
+      // Non-duty staff (e.g. senior supervisors) never appear in assign mode
+      if (assignMode && guard.excludeFromDuty) return false
+
       // Search matching (name, badge ID, phone)
       const matchesSearch =
         q === '' ||

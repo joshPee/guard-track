@@ -31,10 +31,13 @@ model Guard {
   defaultDutyPointId String?
   photoUrl           String?
   shiftType          GuardShiftType           @default(BOTH)
+  designation        String?
+  excludeFromDuty    Boolean                  @default(false)
   startDate          DateTime?
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
   attendanceRecords  AttendanceRecord[]
+  leaveRecords       LeaveRecord[]
   defaultDutyPoint   DutyPoint?               @relation(fields: [defaultDutyPointId], references: [id])
   dailyAssignments   DailyDutyAssignment[]
 
@@ -115,6 +118,25 @@ model AttendanceAudit {
   record      AttendanceRecord @relation(fields: [recordId], references: [id])
 
   @@map("attendance_audits")
+}
+
+model LeaveRecord {
+  id          String    @id
+  guardId     String
+  type        String
+  startDate   DateTime
+  endDate     DateTime
+  reason      String?
+  refNumber   String?
+  status      String    @default("PENDING")
+  approvedBy  String?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  guard Guard @relation(fields: [guardId], references: [id])
+
+  @@map("leave_records")
 }
 
 model Setting {

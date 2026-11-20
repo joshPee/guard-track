@@ -11,6 +11,8 @@ const guardSchema = z.object({
   defaultDutyPointId: z.string().nullish(),
   photoUrl: z.string().nullish(),
   shiftType: z.enum(['DAY', 'NIGHT', 'BOTH']).optional(),
+  designation: z.string().nullish(),
+  excludeFromDuty: z.boolean().optional(),
   startDate: z.string().nullish(),
 })
 
