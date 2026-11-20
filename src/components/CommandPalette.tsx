@@ -20,6 +20,7 @@ import {
   Contact,
   ClipboardList,
   Search,
+  User,
 } from 'lucide-react'
 import { getInitials } from '@/components/attendance/types'
 
@@ -54,6 +55,7 @@ const PAGES: PageItem[] = [
   { kind: 'page', label: 'Schedule', href: '/schedule', icon: CalendarIcon, keywords: 'calendar planner shifts' },
   { kind: 'page', label: 'Reports', href: '/reports', icon: FileText, keywords: 'pdf csv export weekly monthly' },
   { kind: 'page', label: 'Settings', href: '/settings', icon: Settings, keywords: 'config shifts alerts organization' },
+  { kind: 'page', label: 'My Profile', href: '/profile', icon: User, keywords: 'account password name' },
 ]
 
 export function CommandPalette() {

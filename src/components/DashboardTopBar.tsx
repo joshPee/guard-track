@@ -18,7 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { LogOut, Sun, Moon, Search } from 'lucide-react'
+import Link from 'next/link'
+import { LogOut, Sun, Moon, Search, User } from 'lucide-react'
 import { useState } from 'react'
 import { useTheme } from '@/components/theme-provider'
 
@@ -123,6 +124,13 @@ export function DashboardTopBar() {
                   </p>
                 </div>
               </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/profile" className="cursor-pointer">
+                  <User className="mr-2 h-4 w-4" />
+                  My Profile
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setShowSignOutDialog(true)} className="text-red-600 dark:text-red-400 cursor-pointer">
                 <LogOut className="mr-2 h-4 w-4" />
