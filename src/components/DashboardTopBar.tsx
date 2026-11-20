@@ -104,9 +104,17 @@ export function DashboardTopBar() {
                 className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0 transition-all duration-200"
                 title="Profile"
               >
-                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-[11px] font-bold">
-                  {(session?.user?.name || 'U').charAt(0).toUpperCase()}
-                </div>
+                {session?.user?.photoUrl ? (
+                  <img
+                    src={session.user.photoUrl}
+                    alt={session.user.name || 'Profile'}
+                    className="w-7 h-7 rounded-full object-cover object-top"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-[11px] font-bold">
+                    {(session?.user?.name || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">

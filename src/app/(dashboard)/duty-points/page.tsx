@@ -429,7 +429,6 @@ export default function DutyPointsPage() {
                     (name) => name.toLowerCase() === dp.name.toLowerCase()
                   )
                   const displayIndex = officialIndex !== -1 ? officialIndex + 1 : idx + 1
-                  const isSpecial = dp.name.includes('*')
 
                   return (
                     <tr
@@ -459,11 +458,6 @@ export default function DutyPointsPage() {
                               <span className="font-semibold text-slate-900 dark:text-white">
                                 {dp.name}
                               </span>
-                              {isSpecial && (
-                                <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                                  PSTM / Special
-                                </span>
-                              )}
                             </div>
                             <span className="text-xs text-slate-400">Post ID: {dp.id}</span>
                           </div>

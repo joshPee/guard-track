@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic'
 
 const updateProfileSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100).optional(),
+  photoUrl: z.string().nullish(),
   currentPassword: z.string().optional(),
   newPassword: z.string().min(8, 'New password must be at least 8 characters').optional(),
 })
@@ -27,6 +28,7 @@ export async function GET() {
         name: true,
         email: true,
         role: true,
+        photoUrl: true,
         isActive: true,
         createdAt: true,
       },
@@ -56,7 +58,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: parsed.error.errors[0]?.message || 'Invalid input' }, { status: 400 })
     }
 
-    const { name, currentPassword, newPassword } = parsed.data
+    const { name, photoUrl, currentPassword, newPassword } = parsed.data
     const wantsPasswordChange = !!(currentPassword || newPassword)
 
     if (wantsPasswordChange && (!currentPassword || !newPassword)) {
@@ -72,10 +74,14 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const data: { name?: string; passwordHash?: string } = {}
+    const data: { name?: string; photoUrl?: string | null; passwordHash?: string } = {}
 
     if (name !== undefined) {
       data.name = name.trim()
+    }
+
+    if (photoUrl !== undefined) {
+      data.photoUrl = photoUrl || null
     }
 
     if (wantsPasswordChange) {
@@ -93,7 +99,7 @@ export async function PATCH(req: Request) {
     const user = await prisma.user.update({
       where: { id: session.user.id },
       data,
-      select: { id: true, name: true, email: true, role: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, photoUrl: true, isActive: true, createdAt: true },
     })
 
     return NextResponse.json(user)

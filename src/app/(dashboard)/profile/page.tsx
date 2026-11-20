@@ -10,13 +10,15 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Breadcrumb } from '@/components/ui/breadcrumb'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { toast } from '@/components/ui/toast'
-import { User, Mail, Shield, Calendar, KeyRound, Save, Loader2 } from 'lucide-react'
+import { uploadGuardPhoto, previewUrl, revokePreview } from '@/lib/image-upload'
+import { User, Mail, Shield, Calendar, KeyRound, Save, Loader2, Camera } from 'lucide-react'
 
 interface Profile {
   id: string
   name: string
   email: string
   role: string
+  photoUrl: string | null
   isActive: boolean
   createdAt: string
 }
@@ -28,6 +30,8 @@ export default function ProfilePage() {
 
   const [name, setName] = useState('')
   const [savingName, setSavingName] = useState(false)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -75,6 +79,41 @@ export default function ProfilePage() {
       toast.error(err.message)
     } finally {
       setSavingName(false)
+    }
+  }
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file')
+      return
+    }
+
+    const preview = previewUrl(file)
+    setPhotoPreview(preview)
+    setUploadingPhoto(true)
+    try {
+      const url = await uploadGuardPhoto(file)
+      const res = await fetch('/api/users/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ photoUrl: url }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to save photo')
+      setProfile(data)
+      setPhotoPreview(null)
+      revokePreview(preview)
+      await update({ photoUrl: url })
+      toast.success('Profile photo updated')
+    } catch (err: any) {
+      setPhotoPreview(null)
+      revokePreview(preview)
+      toast.error(err.message || 'Photo upload failed')
+    } finally {
+      setUploadingPhoto(false)
+      e.target.value = ''
     }
   }
 
@@ -155,8 +194,40 @@ export default function ProfilePage() {
         {/* Identity Card */}
         <Card className="lg:col-span-1 border-slate-200 dark:border-slate-800">
           <CardContent className="p-6 flex flex-col items-center text-center space-y-4">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-              {initials}
+            <div className="relative">
+              <div className="w-24 h-24 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg border-4 border-white dark:border-slate-900">
+                {photoPreview || profile.photoUrl ? (
+                  <img
+                    src={photoPreview || profile.photoUrl!}
+                    alt={profile.name}
+                    className="w-full h-full object-cover object-top"
+                  />
+                ) : (
+                  initials
+                )}
+                {uploadingPhoto && (
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 text-white animate-spin" />
+                  </div>
+                )}
+              </div>
+              <label
+                htmlFor="profile-photo"
+                className={`absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md border-2 border-white dark:border-slate-900 ${
+                  uploadingPhoto ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-blue-700'
+                }`}
+                title="Change photo"
+              >
+                <Camera className="h-3.5 w-3.5" />
+              </label>
+              <input
+                id="profile-photo"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoUpload}
+                disabled={uploadingPhoto}
+              />
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">{profile.name}</h2>

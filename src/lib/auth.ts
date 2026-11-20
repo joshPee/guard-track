@@ -38,6 +38,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
+          photoUrl: user.photoUrl,
         }
       },
     }),
@@ -47,6 +48,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.role = user.role
         token.id = user.id
+        token.photoUrl = user.photoUrl ?? null
       }
       // Persist token updates
       if (trigger === 'update' && session) {
@@ -58,6 +60,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.role = token.role as string
         session.user.id = token.id as string
+        session.user.photoUrl = (token.photoUrl as string | null) ?? null
       }
       return session
     },
