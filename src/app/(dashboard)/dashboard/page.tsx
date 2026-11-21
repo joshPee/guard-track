@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CampusCoverageMap } from '@/components/ui/campus-coverage-map'
 import { DashboardAutoRefresh } from '@/components/DashboardAutoRefresh'
+import { PortalOverviewStrip } from '@/components/PortalOverviewStrip'
 import {
   Shield,
   Clock,
@@ -224,6 +225,9 @@ export default async function DashboardPage() {
         ]}
       />
       <DashboardAutoRefresh />
+
+      {/* Cross-portal live stats (visitors + equipment) */}
+      <PortalOverviewStrip />
 
       {/* Alerts Banner */}
       {hasAlerts && (

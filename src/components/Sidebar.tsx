@@ -18,11 +18,21 @@ import {
   Calendar as CalendarIcon,
   Contact,
   ClipboardList,
+  IdCard,
+  Package,
+  ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useState } from 'react'
 
-function getNavigationSections(role?: string) {
+interface NavItem {
+  name: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  external?: boolean
+}
+
+function getNavigationSections(role?: string): { label: string; items: NavItem[] }[] {
   const isSupervisor = role === 'SUPERVISOR'
 
   const commonSections = [
@@ -49,6 +59,13 @@ function getNavigationSections(role?: string) {
       label: 'REPORTS',
       items: [
         { name: 'Reports', href: '/reports', icon: FileText },
+      ],
+    },
+    {
+      label: 'PORTALS',
+      items: [
+        { name: 'Visitor Management', href: 'https://pcc-vms.vercel.app', icon: IdCard, external: true },
+        { name: 'Equipment & Inventory', href: 'https://psec-inv.vercel.app', icon: Package, external: true },
       ],
     },
   ]
@@ -138,11 +155,15 @@ export function DashboardSidebar() {
             )}
             <div className="space-y-0.5">
               {section.items.map((item) => {
-                const isActive = pathname === item.href
+                const isActive = !item.external && pathname === item.href
+                const linkProps = item.external
+                  ? { target: '_blank', rel: 'noopener noreferrer' }
+                  : {}
                 return (
                   <Link
                     key={item.name}
                     href={item.href}
+                    {...linkProps}
                     className={cn(
                       'relative flex items-center px-3 py-2.5 text-[13px] font-medium rounded-lg transition-all duration-200',
                       isActive
@@ -158,7 +179,10 @@ export function DashboardSidebar() {
                       isActive ? 'text-emerald-600 dark:text-emerald-400' : ''
                     )} />
                     {!isCollapsed && (
-                      <span className="flex-1 truncate">{item.name}</span>
+                      <span className="flex-1 truncate flex items-center gap-1.5">
+                        {item.name}
+                        {item.external && <ExternalLink className="h-3 w-3 text-slate-400 shrink-0" />}
+                      </span>
                     )}
                     {!isCollapsed && (badges[item.name] ?? 0) > 0 && (
                       <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold">
