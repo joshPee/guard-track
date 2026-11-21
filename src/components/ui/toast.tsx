@@ -1,138 +1,214 @@
 'use client'
 
-import React, { createContext, useContext, useState, useCallback } from 'react'
-import { CheckCircle2, AlertCircle, Info, AlertTriangle, X } from 'lucide-react'
+import * as React from 'react'
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { Check, X, AlertTriangle, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export type ToastType = 'success' | 'error' | 'warning' | 'info'
+export type ToastVariant = 'success' | 'destructive' | 'error' | 'warning' | 'info' | 'default'
 
-export interface ToastItem {
-  id: string
+export interface ToastOptions {
+  id?: string
   title?: string
   message: string
-  type: ToastType
+  variant?: ToastVariant
   duration?: number
 }
 
 interface ToastContextType {
-  toasts: ToastItem[]
-  showToast: (message: string, type?: ToastType, title?: string, duration?: number) => void
-  removeToast: (id: string) => void
-  success: (message: string, title?: string) => void
-  error: (message: string, title?: string) => void
-  warning: (message: string, title?: string) => void
-  info: (message: string, title?: string) => void
+  showToast: (options: ToastOptions | string, variant?: ToastVariant) => void
+  hideToast: () => void
+  toast: {
+    success: (message: string, title?: string) => void
+    error: (message: string, title?: string) => void
+    warning: (message: string, title?: string) => void
+    info: (message: string, title?: string) => void
+  }
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined)
 
-// Export a singleton listener for direct toast(...) function calls
-type ToastListener = (message: string, type: ToastType, title?: string, duration?: number) => void
-let globalToastListener: ToastListener | null = null
+// Singleton listener so `import { toast }` works outside React (matches previous API)
+type ToastFn = (message: string, variant?: ToastVariant, title?: string) => void
+let globalToastFn: ToastFn | null = null
 
 export const toast = {
-  success: (message: string, title?: string) => {
-    globalToastListener?.(message, 'success', title)
-  },
-  error: (message: string, title?: string) => {
-    globalToastListener?.(message, 'error', title)
-  },
-  warning: (message: string, title?: string) => {
-    globalToastListener?.(message, 'warning', title)
-  },
-  info: (message: string, title?: string) => {
-    globalToastListener?.(message, 'info', title)
-  },
+  success: (message: string, title?: string) => globalToastFn?.(message, 'success', title),
+  error: (message: string, title?: string) => globalToastFn?.(message, 'error', title),
+  warning: (message: string, title?: string) => globalToastFn?.(message, 'warning', title),
+  info: (message: string, title?: string) => globalToastFn?.(message, 'info', title),
+}
+
+function getStatusIcon(variant: ToastVariant) {
+  switch (variant) {
+    case 'destructive':
+    case 'error':
+      return (
+        <div className="w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+          <X className="w-3.5 h-3.5 stroke-[3]" />
+        </div>
+      )
+    case 'warning':
+      return (
+        <div className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+          <AlertTriangle className="w-3.5 h-3.5 stroke-[2.5]" />
+        </div>
+      )
+    case 'info':
+      return (
+        <div className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+          <Info className="w-3.5 h-3.5 stroke-[2.5]" />
+        </div>
+      )
+    case 'success':
+    default:
+      return (
+        <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+          <Check className="w-3.5 h-3.5 stroke-[3]" />
+        </div>
+      )
+  }
+}
+
+function getDefaultTitle(variant: ToastVariant): string {
+  switch (variant) {
+    case 'destructive':
+    case 'error':
+      return 'ERROR!'
+    case 'warning':
+      return 'WARNING!'
+    case 'info':
+      return 'INFORMATION!'
+    case 'success':
+    default:
+      return 'SUCCESS!'
+  }
+}
+
+export function ToastCard({
+  title,
+  message,
+  variant = 'success',
+  onClose,
+  className,
+}: {
+  title?: string
+  message?: React.ReactNode
+  variant?: ToastVariant
+  onClose?: () => void
+  className?: string
+}) {
+  const displayTitle = title || getDefaultTitle(variant)
+
+  return (
+    <div
+      className={cn(
+        'relative w-[92vw] sm:w-[420px] max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.12)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.4)] border border-slate-100 dark:border-slate-800 px-6 py-4 transition-all duration-200 animate-fade-in-up',
+        className
+      )}
+      role="alert"
+    >
+      {onClose && (
+        <button
+          onClick={onClose}
+          type="button"
+          aria-label="Close notification"
+          className="absolute top-3.5 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 rounded-md"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
+
+      <div className="flex flex-col items-center justify-center text-center">
+        <div className="flex items-center justify-center gap-2 mb-1">
+          {getStatusIcon(variant)}
+          <span className="font-bold text-xs sm:text-sm tracking-wider text-slate-900 dark:text-white uppercase">
+            {displayTitle}
+          </span>
+        </div>
+
+        {message && (
+          <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-normal leading-relaxed mt-0.5">
+            {message}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toasts, setToasts] = useState<ToastItem[]>([])
+  const [currentToast, setCurrentToast] = useState<ToastOptions | null>(null)
 
-  const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id))
+  const hideToast = useCallback(() => {
+    setCurrentToast(null)
   }, [])
 
   const showToast = useCallback(
-    (message: string, type: ToastType = 'info', title?: string, duration = 4000) => {
-      const id = Math.random().toString(36).substring(2, 9)
-      const newToast: ToastItem = { id, message, type, title, duration }
-
-      setToasts((prev) => [...prev, newToast])
-
-      if (duration > 0) {
-        setTimeout(() => {
-          removeToast(id)
-        }, duration)
+    (options: ToastOptions | string, variant: ToastVariant = 'success') => {
+      if (typeof options === 'string') {
+        setCurrentToast({
+          message: options,
+          variant,
+          duration: 4000,
+        })
+      } else {
+        setCurrentToast({
+          duration: 4000,
+          ...options,
+          variant: options.variant || variant || 'success',
+        })
       }
     },
-    [removeToast]
+    []
   )
 
-  // Register global listener
-  React.useEffect(() => {
-    globalToastListener = (msg, type, title, dur) => {
-      showToast(msg, type, title, dur)
+  useEffect(() => {
+    globalToastFn = (message, variant, title) => {
+      showToast({ message, variant: variant || 'success', title })
     }
     return () => {
-      globalToastListener = null
+      globalToastFn = null
     }
   }, [showToast])
 
-  const success = useCallback((msg: string, title?: string) => showToast(msg, 'success', title), [showToast])
-  const error = useCallback((msg: string, title?: string) => showToast(msg, 'error', title), [showToast])
-  const warning = useCallback((msg: string, title?: string) => showToast(msg, 'warning', title), [showToast])
-  const info = useCallback((msg: string, title?: string) => showToast(msg, 'info', title), [showToast])
+  useEffect(() => {
+    if (!currentToast) return
+
+    const timer = setTimeout(() => {
+      setCurrentToast(null)
+    }, currentToast.duration ?? 4000)
+
+    return () => clearTimeout(timer)
+  }, [currentToast])
+
+  const toastHelpers = React.useMemo(
+    () => ({
+      success: (message: string, title?: string) =>
+        showToast({ message, title, variant: 'success' }),
+      error: (message: string, title?: string) =>
+        showToast({ message, title, variant: 'destructive' }),
+      warning: (message: string, title?: string) =>
+        showToast({ message, title, variant: 'warning' }),
+      info: (message: string, title?: string) =>
+        showToast({ message, title, variant: 'info' }),
+    }),
+    [showToast]
+  )
 
   return (
-    <ToastContext.Provider
-      value={{
-        toasts,
-        showToast,
-        removeToast,
-        success,
-        error,
-        warning,
-        info,
-      }}
-    >
+    <ToastContext.Provider value={{ showToast, hideToast, toast: toastHelpers }}>
       {children}
-      {/* Toast Render Portal Container */}
-      <div className="fixed top-5 right-5 sm:bottom-5 sm:top-auto z-[9999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-4 sm:px-0">
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            className={cn(
-              'pointer-events-auto flex items-start gap-3 p-3.5 rounded-xl border shadow-xl backdrop-blur-md transition-all duration-300 animate-slide-in-left',
-              t.type === 'success' && 'bg-emerald-50/95 dark:bg-emerald-950/95 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100 ring-1 ring-emerald-500/20',
-              t.type === 'error' && 'bg-rose-50/95 dark:bg-rose-950/95 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-100 ring-1 ring-rose-500/20',
-              t.type === 'warning' && 'bg-amber-50/95 dark:bg-amber-950/95 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-100 ring-1 ring-amber-500/20',
-              t.type === 'info' && 'bg-slate-50/95 dark:bg-slate-900/95 border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 ring-1 ring-slate-500/20'
-            )}
-          >
-            {/* Icon */}
-            <div className="shrink-0 mt-0.5">
-              {t.type === 'success' && <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
-              {t.type === 'error' && <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400" />}
-              {t.type === 'warning' && <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />}
-              {t.type === 'info' && <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />}
-            </div>
-
-            {/* Message */}
-            <div className="flex-1 min-w-0">
-              {t.title && <p className="font-semibold text-xs mb-0.5">{t.title}</p>}
-              <p className="text-xs leading-relaxed">{t.message}</p>
-            </div>
-
-            {/* Close Button */}
-            <button
-              onClick={() => removeToast(t.id)}
-              className="shrink-0 p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        ))}
-      </div>
+      {currentToast && (
+        <div className="fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 z-[99999] pointer-events-auto">
+          <ToastCard
+            title={currentToast.title}
+            message={currentToast.message}
+            variant={currentToast.variant}
+            onClose={hideToast}
+          />
+        </div>
+      )}
     </ToastContext.Provider>
   )
 }
