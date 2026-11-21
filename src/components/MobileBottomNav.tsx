@@ -17,6 +17,9 @@ import {
   Calendar as CalendarIcon,
   Contact,
   ClipboardList,
+  IdCard,
+  Package,
+  ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
@@ -25,6 +28,7 @@ interface NavItem {
   name: string
   href: string
   icon: any
+  external?: boolean
 }
 
 const bottomNavItems: NavItem[] = [
@@ -42,6 +46,8 @@ const moreItems: NavItem[] = [
   { name: 'Heatmap', href: '/heatmap', icon: CalendarDays },
   { name: 'Schedule', href: '/schedule', icon: CalendarIcon },
   { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'Visitor Management', href: 'https://pcc-vms.vercel.app', icon: IdCard, external: true },
+  { name: 'Equipment & Inventory', href: 'https://psec-inv.vercel.app', icon: Package, external: true },
 ]
 
 export function MobileBottomNav() {
@@ -136,8 +142,35 @@ export function MobileBottomNav() {
           <div className="fixed bottom-16 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 z-50 lg:hidden rounded-t-2xl p-4">
             <div className="space-y-1">
               {moreItems.map((item) => {
-                const isActive = pathname === item.href
-                return (
+                const isActive = !item.external && pathname === item.href
+                const itemClass = cn(
+                  'flex items-center gap-3 px-4 py-3 rounded-lg transition-colors',
+                  isActive
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                )
+                const content = (
+                  <>
+                    <item.icon className="h-5 w-5" />
+                    <span className="font-medium">{item.name}</span>
+                    {item.external && <ExternalLink className="h-3.5 w-3.5 ml-auto text-slate-400" />}
+                  </>
+                )
+                return item.external ? (
+                  <a
+                    key={item.name}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => {
+                      if (navigator.vibrate) navigator.vibrate(10)
+                      setIsMoreOpen(false)
+                    }}
+                    className={itemClass}
+                  >
+                    {content}
+                  </a>
+                ) : (
                   <Link
                     key={item.name}
                     href={item.href}
@@ -145,15 +178,9 @@ export function MobileBottomNav() {
                       if (navigator.vibrate) navigator.vibrate(10)
                       setIsMoreOpen(false)
                     }}
-                    className={cn(
-                      'flex items-center gap-3 px-4 py-3 rounded-lg transition-colors',
-                      isActive
-                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300'
-                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                    )}
+                    className={itemClass}
                   >
-                    <item.icon className="h-5 w-5" />
-                    <span className="font-medium">{item.name}</span>
+                    {content}
                   </Link>
                 )
               })}
