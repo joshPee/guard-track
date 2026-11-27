@@ -5,6 +5,7 @@ declare module 'next-auth' {
     role: string
     id: string
     photoUrl?: string | null
+    shiftScope?: string | null
   }
 
   interface Session {
@@ -14,6 +15,7 @@ declare module 'next-auth' {
       name: string
       role: string
       photoUrl?: string | null
+      shiftScope?: string | null
     }
   }
 }
@@ -23,5 +25,6 @@ declare module 'next-auth/jwt' {
     role: string
     id: string
     photoUrl?: string | null
+    shiftScope?: string | null
   }
 }

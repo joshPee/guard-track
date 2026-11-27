@@ -13,6 +13,7 @@ model User {
   email             String             @unique
   passwordHash      String
   role              UserRole
+  shiftScope        String?
   photoUrl          String?
   isActive          Boolean            @default(true)
   createdAt         DateTime           @default(now())

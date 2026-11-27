@@ -38,6 +38,7 @@ import {
   Building2,
   CheckCheck,
   ArrowLeftRight,
+  User,
 } from 'lucide-react'
 import { PortalNavbar } from '@/components/PortalNavbar'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -481,6 +482,25 @@ export default function GuardDirectoryPage() {
   const selectedShiftObj = useMemo(() => shifts.find((s) => s.id === selectedShift), [shifts, selectedShift])
   const isDayShift = useMemo(() => selectedShiftObj?.name.toLowerCase().includes('day') ?? true, [selectedShiftObj])
 
+  // Supervisor shift scoping: DAY/NIGHT-scoped supervisors are locked to their shift in assign mode
+  const supervisorScope = session?.user?.shiftScope || null
+  const scopedShiftId = useMemo(() => {
+    if (!assignMode || !canAssign || (supervisorScope !== 'DAY' && supervisorScope !== 'NIGHT')) return null
+    const needle = supervisorScope === 'DAY' ? 'day' : 'night'
+    return shifts.find((s) => s.name.toLowerCase().includes(needle))?.id || null
+  }, [assignMode, canAssign, supervisorScope, shifts])
+  const visibleShifts = useMemo(
+    () => (scopedShiftId ? shifts.filter((s) => s.id === scopedShiftId) : shifts),
+    [shifts, scopedShiftId]
+  )
+
+  // Auto-select the supervisor's scoped shift while in assign mode
+  useEffect(() => {
+    if (scopedShiftId && selectedShift !== scopedShiftId) {
+      setSelectedShift(scopedShiftId)
+    }
+  }, [scopedShiftId, selectedShift])
+
   // Get initials for fallback avatar
   const getInitials = useCallback((name: string) => {
     return name
@@ -737,6 +757,17 @@ export default function GuardDirectoryPage() {
               <Shield className="w-3.5 h-3.5" />
               <span>{assignMode ? 'Exit Assign Mode' : '⚡ Assign Mode'}</span>
             </Button>
+            {sessionStatus === 'unauthenticated' && !assignMode && (
+              <Button
+                onClick={() => router.push('/login')}
+                variant="outline"
+                size="sm"
+                className="text-xs font-bold gap-1.5 bg-white/10 hover:bg-white/20 text-white border border-white/20"
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>Supervisor Sign In</span>
+              </Button>
+            )}
             {selectedGuardIds.size === 2 && (
               <Button
                 onClick={swapPosts}
@@ -777,7 +808,14 @@ export default function GuardDirectoryPage() {
                 <Shield className="w-4 h-4 text-amber-800 dark:text-amber-200" />
               </div>
               <div className="text-xs">
-                <p className="font-bold">Assign Mode Active ({selectedShiftObj?.name || 'Selected Shift'})</p>
+                <p className="font-bold">
+                  Assign Mode Active ({selectedShiftObj?.name || 'Selected Shift'})
+                  {scopedShiftId && supervisorScope && (
+                    <span className="ml-2 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/20">
+                      {supervisorScope === 'DAY' ? 'Day shift only' : 'Night shift only'}
+                    </span>
+                  )}
+                </p>
                 <p className="text-amber-700 dark:text-amber-300">
                   Select a duty point dropdown for any guard below, then click &ldquo;Save Assignments&rdquo;.
                   {selectedGuardIds.size === 2 && (
@@ -891,7 +929,7 @@ export default function GuardDirectoryPage() {
                     <SelectValue placeholder="Select shift..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {shifts.map((shift) => (
+                    {visibleShifts.map((shift) => (
                       <SelectItem key={shift.id} value={shift.id} className="text-xs sm:text-sm">
                         <div className="flex items-center gap-2">
                           {shift.name.toLowerCase().includes('day') ? (

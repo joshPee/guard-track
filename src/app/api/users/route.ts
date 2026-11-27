@@ -10,6 +10,7 @@ const createUserSchema = z.object({
   email: z.string().email('Valid email is required'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   role: z.enum(['SUPERVISOR', 'VIEWER']).default('SUPERVISOR'),
+  shiftScope: z.enum(['DAY', 'NIGHT', 'BOTH']).nullish(),
 })
 
 async function requireSupervisor() {
@@ -31,6 +32,7 @@ export async function GET() {
         name: true,
         email: true,
         role: true,
+        shiftScope: true,
         isActive: true,
         createdAt: true,
       },
@@ -57,7 +59,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: parsed.error.errors[0]?.message || 'Invalid input' }, { status: 400 })
     }
 
-    const { name, email, password, role } = parsed.data
+    const { name, email, password, role, shiftScope } = parsed.data
 
     const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } })
     if (existing) {
@@ -71,8 +73,9 @@ export async function POST(req: Request) {
         email: email.toLowerCase().trim(),
         passwordHash,
         role,
+        shiftScope: shiftScope || null,
       },
-      select: { id: true, name: true, email: true, role: true, isActive: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, shiftScope: true, isActive: true, createdAt: true },
     })
 
     return NextResponse.json(user, { status: 201 })

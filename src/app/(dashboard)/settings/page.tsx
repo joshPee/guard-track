@@ -51,6 +51,7 @@ interface AppUser {
   name: string
   email: string
   role: string
+  shiftScope?: string | null
   isActive: boolean
   createdAt: string
 }
@@ -77,7 +78,7 @@ export default function SettingsPage() {
 
   // User management state
   const [addUserOpen, setAddUserOpen] = useState(false)
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'SUPERVISOR' })
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'SUPERVISOR', shiftScope: '' })
   const [creatingUser, setCreatingUser] = useState(false)
   const [userActionId, setUserActionId] = useState<string | null>(null)
   const [resetPwUser, setResetPwUser] = useState<AppUser | null>(null)
@@ -143,7 +144,7 @@ export default function SettingsPage() {
       }
       toast.success(`${newUser.name} can now sign in.`, 'User Created')
       setAddUserOpen(false)
-      setNewUser({ name: '', email: '', password: '', role: 'SUPERVISOR' })
+      setNewUser({ name: '', email: '', password: '', role: 'SUPERVISOR', shiftScope: '' })
       refreshUsers()
     } catch {
       toast.error('An error occurred while creating the user.')
@@ -520,6 +521,27 @@ export default function SettingsPage() {
                           </button>
                         </>
                       )}
+                      {user.role === 'SUPERVISOR' && user.id !== session?.user?.id && (
+                        <select
+                          value={user.shiftScope || ''}
+                          onChange={(e) =>
+                            patchUser(user.id, { shiftScope: e.target.value || null }, `${user.name}'s shift scope updated`)
+                          }
+                          disabled={userActionId === user.id}
+                          className="h-7 text-[10px] font-bold rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-1.5 text-slate-600 dark:text-slate-300 disabled:opacity-40"
+                          title="Shift scope"
+                        >
+                          <option value="">All shifts</option>
+                          <option value="DAY">Day</option>
+                          <option value="NIGHT">Night</option>
+                          <option value="BOTH">Both</option>
+                        </select>
+                      )}
+                      {user.role === 'SUPERVISOR' && user.id === session?.user?.id && user.shiftScope && (
+                        <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300">
+                          {user.shiftScope === 'DAY' ? 'Day' : user.shiftScope === 'NIGHT' ? 'Night' : 'Both'} shift
+                        </span>
+                      )}
                       <span
                         className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                           user.role === 'SUPERVISOR'
@@ -700,6 +722,22 @@ export default function SettingsPage() {
                   <option value="VIEWER">Viewer</option>
                 </select>
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Shift Scope (supervisors only)</Label>
+              <select
+                value={newUser.shiftScope}
+                onChange={(e) => setNewUser({ ...newUser, shiftScope: e.target.value })}
+                className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm"
+              >
+                <option value="">All shifts (admin)</option>
+                <option value="DAY">Day shift only</option>
+                <option value="NIGHT">Night shift only</option>
+                <option value="BOTH">Both shifts</option>
+              </select>
+              <p className="text-[11px] text-slate-400">
+                Scoped supervisors only see and assign guards for their shift on the Directory page.
+              </p>
             </div>
           </div>
           <DialogFooter className="gap-2">

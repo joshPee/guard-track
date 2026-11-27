@@ -8,6 +8,7 @@ import { z } from 'zod'
 const updateUserSchema = z.object({
   name: z.string().min(2).optional(),
   role: z.enum(['SUPERVISOR', 'VIEWER']).optional(),
+  shiftScope: z.enum(['DAY', 'NIGHT', 'BOTH']).nullable().optional(),
   isActive: z.boolean().optional(),
   password: z.string().min(8, 'Password must be at least 8 characters').optional(),
 })
@@ -40,6 +41,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const data: Record<string, unknown> = {}
     if (parsed.data.name !== undefined) data.name = parsed.data.name.trim()
     if (parsed.data.role !== undefined) data.role = parsed.data.role
+    if (parsed.data.shiftScope !== undefined) data.shiftScope = parsed.data.shiftScope
     if (parsed.data.isActive !== undefined) data.isActive = parsed.data.isActive
     if (parsed.data.password !== undefined) {
       data.passwordHash = await bcrypt.hash(parsed.data.password, 10)
@@ -48,7 +50,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const user = await prisma.user.update({
       where: { id },
       data,
-      select: { id: true, name: true, email: true, role: true, isActive: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, shiftScope: true, isActive: true, createdAt: true },
     })
 
     return NextResponse.json(user)

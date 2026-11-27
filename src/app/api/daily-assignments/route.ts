@@ -71,6 +71,22 @@ export async function POST(req: Request) {
 
     const body = await req.json()
 
+    // Enforce supervisor shift scope: DAY/NIGHT-scoped supervisors can only write their shift
+    const scope = session?.user?.shiftScope as string | null | undefined
+    if (scope === 'DAY' || scope === 'NIGHT') {
+      const items: Array<{ shiftId?: string }> = Array.isArray(body?.batch) ? body.batch : [body]
+      const shiftIds = Array.from(new Set(items.map((i) => i.shiftId).filter(Boolean))) as string[]
+      if (shiftIds.length > 0) {
+        const shifts = await prisma.shift.findMany({ where: { id: { in: shiftIds } }, select: { id: true, name: true } })
+        const needle = scope === 'DAY' ? 'day' : 'night'
+        const allowed = new Set(shifts.filter((s) => s.name.toLowerCase().includes(needle)).map((s) => s.id))
+        const denied = shiftIds.filter((id) => !allowed.has(id))
+        if (denied.length > 0) {
+          return NextResponse.json({ error: `Your account is scoped to the ${scope.toLowerCase()} shift` }, { status: 403 })
+        }
+      }
+    }
+
     // Handle batch assignment updates
     if (body && Array.isArray(body.batch)) {
       const { batch } = batchSchema.parse(body)

@@ -39,6 +39,7 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           role: user.role,
           photoUrl: user.photoUrl,
+          shiftScope: user.shiftScope,
         }
       },
     }),
@@ -49,6 +50,7 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role
         token.id = user.id
         token.photoUrl = user.photoUrl ?? null
+        token.shiftScope = user.shiftScope ?? null
       }
       // Persist token updates
       if (trigger === 'update' && session) {
@@ -61,6 +63,7 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role as string
         session.user.id = token.id as string
         session.user.photoUrl = (token.photoUrl as string | null) ?? null
+        session.user.shiftScope = (token.shiftScope as string | null) ?? null
       }
       return session
     },
