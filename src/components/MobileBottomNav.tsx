@@ -20,7 +20,6 @@ import {
   IdCard,
   Package,
   ExternalLink,
-  UserCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
@@ -43,7 +42,6 @@ const moreItems: NavItem[] = [
   { name: 'Duty Points', href: '/duty-points', icon: MapPin },
   { name: 'Directory', href: '/directory', icon: Contact },
   { name: 'Assignments', href: '/assignments', icon: ClipboardList },
-  { name: 'Supervisor Roster', href: '/supervisor', icon: UserCheck },
   { name: 'Leave & Exeats', href: '/leave', icon: CalendarCheck },
   { name: 'Heatmap', href: '/heatmap', icon: CalendarDays },
   { name: 'Schedule', href: '/schedule', icon: CalendarIcon },
