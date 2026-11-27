@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -82,38 +84,19 @@ interface DailyAssignment {
   date: string
 }
 
-const PORTAL_TOKEN_KEY = 'pcc_portal_token'
-
-function getPortalToken(): string | null {
-  if (typeof window === 'undefined') return null
-  return localStorage.getItem(PORTAL_TOKEN_KEY)
-}
-
-// POST with the shared portal token; prompts once and retries on 401
+// POST assignments using the logged-in supervisor session
 async function postDailyAssignments(body: unknown): Promise<Response> {
-  const doFetch = (token: string | null) =>
-    fetch('/api/daily-assignments', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { 'x-portal-token': token } : {}),
-      },
-      body: JSON.stringify(body),
-    })
-
-  let res = await doFetch(getPortalToken())
-  if (res.status === 401) {
-    const token = window.prompt('Portal access token required to save assignments:')
-    if (token && token.trim()) {
-      const trimmed = token.trim()
-      localStorage.setItem(PORTAL_TOKEN_KEY, trimmed)
-      res = await doFetch(trimmed)
-    }
-  }
-  return res
+  return fetch('/api/daily-assignments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
 }
 
 export default function GuardDirectoryPage() {
+  const router = useRouter()
+  const { data: session, status: sessionStatus } = useSession()
+  const canAssign = session?.user?.role === 'SUPERVISOR'
   const [guards, setGuards] = useState<Guard[]>([])
   const [dutyPoints, setDutyPoints] = useState<DutyPoint[]>([])
   const [shifts, setShifts] = useState<Shift[]>([])
@@ -280,9 +263,23 @@ export default function GuardDirectoryPage() {
     setSelectedDate(d.toISOString().split('T')[0])
   }, [])
 
-  // Toggle Assign Mode & Initialize Draft
+  // Shared gate: batch actions require supervisor login
+  const requireAssignAccess = useCallback((): boolean => {
+    if (canAssign) return true
+    if (sessionStatus === 'unauthenticated') {
+      toast.error('Sign in with a supervisor account to assign duties.', 'Login Required')
+      router.push('/login')
+    } else {
+      toast.error('Only supervisor accounts can assign duties.', 'Access Denied')
+    }
+    return false
+  }, [canAssign, sessionStatus, router])
+
+  // Toggle Assign Mode & Initialize Draft — requires a supervisor login
   const toggleAssignMode = useCallback(() => {
     if (!assignMode) {
+      if (sessionStatus === 'loading') return
+      if (!requireAssignAccess()) return
       // Entering assign mode: build initial draft dictionary from current daily assignments
       const draft: Record<string, string> = {}
       dailyAssignments.forEach((a) => {
@@ -295,7 +292,7 @@ export default function GuardDirectoryPage() {
       setModifiedGuards(new Set())
     }
     setAssignMode(!assignMode)
-  }, [assignMode, dailyAssignments])
+  }, [assignMode, dailyAssignments, requireAssignAccess])
 
   // Update a single guard's assignment in draft
   const updateAssignment = useCallback((guardId: string, dutyPointId: string) => {
@@ -404,7 +401,8 @@ export default function GuardDirectoryPage() {
       const res = await postDailyAssignments({ batch: batchPayload })
 
       if (res.status === 401) {
-        toast.error('Invalid portal token. Please try saving again.')
+        toast.error('Your session expired — please sign in again.', 'Login Required')
+        router.push('/login')
         return
       }
       if (!res.ok) {
@@ -544,6 +542,8 @@ export default function GuardDirectoryPage() {
   const applyBatchAssignment = useCallback(() => {
     if (!batchDutyPointId || selectedGuardIds.size === 0) return
 
+    if (!requireAssignAccess()) return
+
     // Ensure assignMode is enabled so user can see and save changes
     if (!assignMode) {
       const draft: Record<string, string> = {}
@@ -568,10 +568,11 @@ export default function GuardDirectoryPage() {
     setModifiedGuards(newModified)
     toast.success(`Assigned ${selectedGuardIds.size} guards to "${targetName}". Click Save Changes to confirm!`)
     setSelectedGuardIds(new Set())
-  }, [batchDutyPointId, selectedGuardIds, assignMode, dailyAssignments, assignmentsDraft, modifiedGuards, sortedDutyPoints])
+  }, [batchDutyPointId, selectedGuardIds, assignMode, dailyAssignments, assignmentsDraft, modifiedGuards, sortedDutyPoints, requireAssignAccess])
 
   const applyBatchOffDuty = useCallback(() => {
     if (!offDutyDp || selectedGuardIds.size === 0) return
+    if (!requireAssignAccess()) return
 
     if (!assignMode) {
       const draft: Record<string, string> = {}
@@ -594,7 +595,7 @@ export default function GuardDirectoryPage() {
     setModifiedGuards(newModified)
     toast.success(`Marked ${selectedGuardIds.size} guards as Off Duty. Click Save Changes to confirm!`)
     setSelectedGuardIds(new Set())
-  }, [offDutyDp, selectedGuardIds, assignMode, dailyAssignments, assignmentsDraft, modifiedGuards])
+  }, [offDutyDp, selectedGuardIds, assignMode, dailyAssignments, assignmentsDraft, modifiedGuards, requireAssignAccess])
 
   // Swap duty points between exactly 2 selected guards
   const swapPosts = useCallback(() => {
@@ -622,6 +623,7 @@ export default function GuardDirectoryPage() {
 
     // Ensure assignMode is enabled
     if (!assignMode) {
+      if (!requireAssignAccess()) return
       const draft: Record<string, string> = {}
       dailyAssignments.forEach((a) => {
         draft[a.guardId] = a.dutyPointId
@@ -652,7 +654,7 @@ export default function GuardDirectoryPage() {
     toast.success(
       `Swapped posts: ${guard1?.fullName || 'Guard 1'} ↔ ${guard2?.fullName || 'Guard 2'}. Click Save Changes to confirm!`
     )
-  }, [selectedGuardIds, assignMode, assignmentsDraft, assignmentMap, dailyAssignments, modifiedGuards, guards, sortedDutyPoints])
+  }, [selectedGuardIds, assignMode, assignmentsDraft, assignmentMap, dailyAssignments, modifiedGuards, guards, sortedDutyPoints, requireAssignAccess])
 
   // Get recent assignment history for a guard (last 7 days)
   const getGuardRecentHistory = (guardId: string) => {

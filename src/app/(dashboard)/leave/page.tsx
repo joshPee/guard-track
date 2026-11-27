@@ -72,7 +72,7 @@ interface LeaveRecord {
   guardPhone: string | null
   guardStatus: string
   dutyPointName: string | null
-  type: 'CASUAL' | 'EXCUSED_CLINIC' | 'EXEAT' | 'EMERGENCY' | 'ANNUAL' | 'OFF_DUTY'
+  type: 'CASUAL' | 'EXCUSED_CLINIC' | 'EXEAT' | 'EMERGENCY' | 'ANNUAL' | 'OFF_DUTY' | 'EXCUSED'
   startDate: string
   endDate: string
   reason: string | null
@@ -222,6 +222,7 @@ export default function LeaveManagementPage() {
       ANNUAL: 'ANN',
       EMERGENCY: 'EMG',
       OFF_DUTY: 'OFF',
+      EXCUSED: 'EXC',
     }
     const prefix = prefixMap[type] || 'REQ'
     const year = new Date().getFullYear()
@@ -398,6 +399,12 @@ export default function LeaveManagementPage() {
           label: 'Off-Duty Roster',
           icon: Clock,
           bg: 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+        }
+      case 'EXCUSED':
+        return {
+          label: 'Excuse Duty',
+          icon: CalendarX,
+          bg: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-900/60',
         }
       case 'CASUAL':
       default:
@@ -644,6 +651,7 @@ export default function LeaveManagementPage() {
                   <SelectItem value="EMERGENCY">Emergency Leave</SelectItem>
                   <SelectItem value="ANNUAL">Annual Leave</SelectItem>
                   <SelectItem value="OFF_DUTY">Off-Duty Rest Day</SelectItem>
+                  <SelectItem value="EXCUSED">Excuse Duty</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1100,6 +1108,7 @@ export default function LeaveManagementPage() {
                     <SelectItem value="EMERGENCY">Emergency Leave</SelectItem>
                     <SelectItem value="ANNUAL">Annual Leave</SelectItem>
                     <SelectItem value="OFF_DUTY">Off-Duty Rest Day</SelectItem>
+                    <SelectItem value="EXCUSED">Excuse Duty (Sick / Permission)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

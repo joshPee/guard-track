@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 
 const createLeaveSchema = z.object({
   guardId: z.string().min(1, 'Guard is required'),
-  type: z.enum(['CASUAL', 'EXCUSED_CLINIC', 'EXEAT', 'EMERGENCY', 'ANNUAL', 'OFF_DUTY']).default('CASUAL'),
+  type: z.enum(['CASUAL', 'EXCUSED_CLINIC', 'EXEAT', 'EMERGENCY', 'ANNUAL', 'OFF_DUTY', 'EXCUSED']).default('CASUAL'),
   startDate: z.string().min(1, 'Start date is required'),
   endDate: z.string().min(1, 'End date is required'),
   reason: z.string().optional().nullable(),
@@ -144,6 +144,7 @@ export async function POST(req: Request) {
         ANNUAL: 'ANN',
         EMERGENCY: 'EMG',
         OFF_DUTY: 'OFF',
+        EXCUSED: 'EXC',
       }
       const prefix = prefixMap[type] || 'REQ'
       const year = new Date().getFullYear()

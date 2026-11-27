@@ -10,7 +10,7 @@ import { Breadcrumb } from '@/components/ui/breadcrumb'
 import { Button } from '@/components/ui/button'
 import { useSession } from 'next-auth/react'
 import {
-  Shield, BookOpen, Layers,
+  Shield, BookOpen, Layers, CalendarX,
 } from 'lucide-react'
 import { toast } from '@/components/ui/toast'
 import {
@@ -19,6 +19,7 @@ import {
 } from '@/components/attendance/types'
 import { BookEntryMode } from '@/components/attendance/BookEntryMode'
 import { RosterMode } from '@/components/attendance/RosterMode'
+import { ExcuseGuardModal } from '@/components/attendance/ExcuseGuardModal'
 
 export default function AttendancePage() {
   const { data: session } = useSession()
@@ -39,6 +40,8 @@ export default function AttendancePage() {
   const [sortMode, setSortMode] = useState<SortMode>('alpha')
   const [selectedGuardIds, setSelectedGuardIds] = useState<Set<string>>(new Set())
   const [leaveMap, setLeaveMap] = useState<Record<string, LeaveInfo>>({})
+  const [excuseOpen, setExcuseOpen] = useState(false)
+  const [leaveReloadKey, setLeaveReloadKey] = useState(0)
 
   // View Mode: 'book-mode' for rapid mobile physical book entry, 'roster-mode' for full roster
   const [activeTab, setActiveTab] = useState<'book-mode' | 'roster-mode'>('book-mode')
@@ -96,7 +99,7 @@ export default function AttendancePage() {
       }
     }
     if (date) fetchLeave()
-  }, [date])
+  }, [date, leaveReloadKey])
 
   // Update default book time when shift changes
   useEffect(() => {
@@ -777,6 +780,17 @@ export default function AttendancePage() {
                 <span>Roster ({attendanceRows.length})</span>
               </button>
             </div>
+
+            {/* Excuse Duty */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExcuseOpen(true)}
+              className="self-stretch sm:self-end gap-1.5 text-xs font-semibold border-violet-200 dark:border-violet-900 text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/40"
+            >
+              <CalendarX className="h-3.5 w-3.5" />
+              Excuse Guard
+            </Button>
           </div>
 
           {/* Progress Tracker Bar */}
@@ -935,6 +949,14 @@ export default function AttendancePage() {
           </div>
         </div>
       </div>
+
+      <ExcuseGuardModal
+        open={excuseOpen}
+        onClose={() => setExcuseOpen(false)}
+        guards={guards}
+        defaultDate={date}
+        onSuccess={() => setLeaveReloadKey((k) => k + 1)}
+      />
     </div>
   )
 }

@@ -10,6 +10,14 @@ import { useSession } from 'next-auth/react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Breadcrumb } from '@/components/ui/breadcrumb'
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import {
   Settings,
   Building2,
   Clock,
@@ -22,7 +30,11 @@ import {
   UserCheck,
   Bell,
   AlertTriangle,
-  TrendingUp
+  TrendingUp,
+  Plus,
+  KeyRound,
+  UserX,
+  UserCog,
 } from 'lucide-react'
 import { toast } from '@/components/ui/toast'
 
@@ -63,6 +75,14 @@ export default function SettingsPage() {
   })
   const [savingAlerts, setSavingAlerts] = useState(false)
 
+  // User management state
+  const [addUserOpen, setAddUserOpen] = useState(false)
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'SUPERVISOR' })
+  const [creatingUser, setCreatingUser] = useState(false)
+  const [userActionId, setUserActionId] = useState<string | null>(null)
+  const [resetPwUser, setResetPwUser] = useState<AppUser | null>(null)
+  const [resetPwValue, setResetPwValue] = useState('')
+
   useEffect(() => {
     fetchInitialData()
   }, [])
@@ -97,6 +117,71 @@ export default function SettingsPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const refreshUsers = async () => {
+    const res = await fetch('/api/users')
+    if (res.ok) setAppUsers(await res.json())
+  }
+
+  const handleCreateUser = async () => {
+    if (!newUser.name.trim() || !newUser.email.trim() || newUser.password.length < 8) {
+      toast.error('Name, email and an 8+ character password are required.')
+      return
+    }
+    setCreatingUser(true)
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to create user.')
+        return
+      }
+      toast.success(`${newUser.name} can now sign in.`, 'User Created')
+      setAddUserOpen(false)
+      setNewUser({ name: '', email: '', password: '', role: 'SUPERVISOR' })
+      refreshUsers()
+    } catch {
+      toast.error('An error occurred while creating the user.')
+    } finally {
+      setCreatingUser(false)
+    }
+  }
+
+  const patchUser = async (id: string, data: Record<string, unknown>, successMsg: string) => {
+    setUserActionId(id)
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      const resp = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(resp.error || 'Update failed.')
+        return
+      }
+      toast.success(successMsg, 'User Updated')
+      refreshUsers()
+    } catch {
+      toast.error('An error occurred.')
+    } finally {
+      setUserActionId(null)
+    }
+  }
+
+  const handleResetPassword = async () => {
+    if (!resetPwUser || resetPwValue.length < 8) {
+      toast.error('Password must be at least 8 characters.')
+      return
+    }
+    await patchUser(resetPwUser.id, { password: resetPwValue }, `Password reset for ${resetPwUser.name}`)
+    setResetPwUser(null)
+    setResetPwValue('')
   }
 
   const updateShift = async (id: string, data: Partial<Shift>) => {
@@ -355,14 +440,20 @@ export default function SettingsPage() {
         {/* System User Accounts */}
         <Card className="animate-fade-in-up animation-delay-2 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
           <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800/80">
-            <div className="flex items-center gap-2.5">
-              <span className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
-                <Shield className="h-4 w-4" />
-              </span>
-              <div>
-                <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Authorized System Users</CardTitle>
-                <CardDescription className="text-xs text-slate-500">Accounts with portal access and attendance management permissions</CardDescription>
+            <div className="flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <span className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                  <Shield className="h-4 w-4" />
+                </span>
+                <div>
+                  <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Authorized System Users</CardTitle>
+                  <CardDescription className="text-xs text-slate-500">Accounts with portal access — supervisors can assign duties and approve leave</CardDescription>
+                </div>
               </div>
+              <Button size="sm" onClick={() => setAddUserOpen(true)} className="gap-1.5 text-xs shrink-0">
+                <Plus className="h-3.5 w-3.5" />
+                Add User
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="pt-4">
@@ -370,27 +461,75 @@ export default function SettingsPage() {
               {appUsers.length > 0 ? (
                 appUsers.map((user) => (
                   <div key={user.id} className="py-3 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-xs text-slate-700 dark:text-slate-300">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-xs text-slate-700 dark:text-slate-300 shrink-0">
                         {user.name.charAt(0).toUpperCase()}
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900 dark:text-white">{user.name}</p>
-                        <p className="text-xs text-slate-500 flex items-center gap-1">
-                          <Mail className="h-3 w-3" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                          {user.name}
+                          {!user.isActive && (
+                            <span className="ml-2 text-[10px] font-bold text-rose-600 dark:text-rose-400">INACTIVE</span>
+                          )}
+                        </p>
+                        <p className="text-xs text-slate-500 flex items-center gap-1 truncate">
+                          <Mail className="h-3 w-3 shrink-0" />
                           {user.email}
                         </p>
                       </div>
                     </div>
-                    <span
-                      className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                        user.role === 'SUPERVISOR'
-                          ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
-                          : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                      }`}
-                    >
-                      {user.role}
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {user.id !== session?.user?.id && (
+                        <>
+                          <button
+                            onClick={() => patchUser(user.id, { role: user.role === 'SUPERVISOR' ? 'VIEWER' : 'SUPERVISOR' }, `${user.name} is now ${user.role === 'SUPERVISOR' ? 'VIEWER' : 'SUPERVISOR'}`)}
+                            disabled={userActionId === user.id}
+                            className="text-[10px] font-bold px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40"
+                            title="Toggle role"
+                          >
+                            {user.role === 'SUPERVISOR' ? 'Make Viewer' : 'Make Supervisor'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setResetPwUser(user)
+                              setResetPwValue('')
+                            }}
+                            disabled={userActionId === user.id}
+                            className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40"
+                            title="Reset password"
+                          >
+                            <KeyRound className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => patchUser(user.id, { isActive: !user.isActive }, user.isActive ? `${user.name} deactivated` : `${user.name} reactivated`)}
+                            disabled={userActionId === user.id}
+                            className={`p-1.5 rounded-md transition-colors disabled:opacity-40 ${
+                              user.isActive
+                                ? 'text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+                                : 'text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+                            }`}
+                            title={user.isActive ? 'Deactivate account' : 'Reactivate account'}
+                          >
+                            {userActionId === user.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : user.isActive ? (
+                              <UserX className="h-3.5 w-3.5" />
+                            ) : (
+                              <UserCheck className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </>
+                      )}
+                      <span
+                        className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                          user.role === 'SUPERVISOR'
+                            ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
+                            : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                        }`}
+                      >
+                        {user.role}
+                      </span>
+                    </div>
                   </div>
                 ))
               ) : (
@@ -506,6 +645,108 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Add User Dialog */}
+      <Dialog open={addUserOpen} onOpenChange={setAddUserOpen}>
+        <DialogContent className="sm:max-w-md bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <UserCog className="h-4 w-4 text-indigo-500" />
+              Create System User
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Supervisors can assign duties, approve leave and manage the roster. Viewers get read-only access.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Full Name</Label>
+              <Input
+                value={newUser.name}
+                onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                placeholder="e.g. Vida Daboro"
+                className="text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email / Username</Label>
+              <Input
+                type="email"
+                value={newUser.email}
+                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                placeholder="vida@pcc.gov.gh"
+                className="text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Password</Label>
+                <Input
+                  type="text"
+                  value={newUser.password}
+                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  placeholder="Min 8 characters"
+                  className="text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Role</Label>
+                <select
+                  value={newUser.role}
+                  onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                  className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm"
+                >
+                  <option value="SUPERVISOR">Supervisor</option>
+                  <option value="VIEWER">Viewer</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setAddUserOpen(false)} disabled={creatingUser}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateUser} disabled={creatingUser} className="gap-2">
+              {creatingUser && <Loader2 className="h-4 w-4 animate-spin" />}
+              Create Account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={!!resetPwUser} onOpenChange={(v) => !v && setResetPwUser(null)}>
+        <DialogContent className="sm:max-w-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <KeyRound className="h-4 w-4 text-blue-500" />
+              Reset Password
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Set a new password for {resetPwUser?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">New Password</Label>
+            <Input
+              type="text"
+              value={resetPwValue}
+              onChange={(e) => setResetPwValue(e.target.value)}
+              placeholder="Min 8 characters"
+              className="text-sm"
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setResetPwUser(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleResetPassword} disabled={userActionId === resetPwUser?.id} className="gap-2">
+              {userActionId === resetPwUser?.id && <Loader2 className="h-4 w-4 animate-spin" />}
+              Reset Password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
