@@ -57,24 +57,24 @@ export async function GET(req: Request) {
 
     // Attach approved excused/leave status for the requested date so the
     // public roster can badge excused guards (they keep their post occupied).
-    if (date && assignments.length > 0) {
+    const includeExcused = searchParams.get('includeExcused') === '1'
+    if (date) {
       const leaveModel = (prisma as any).leaveRecord
       if (leaveModel) {
         const dayStart = new Date(date)
         dayStart.setHours(0, 0, 0, 0)
         const dayEnd = new Date(date)
         dayEnd.setHours(23, 59, 59, 999)
-        const guardIds = Array.from(new Set(assignments.map((a) => a.guard.id)))
+        const assignedGuardIds = new Set(assignments.map((a) => a.guard.id))
         const leaves: Array<{ guardId: string; type: string; reason: string | null }> = await leaveModel.findMany({
           where: {
             status: 'APPROVED',
-            guardId: { in: guardIds },
             startDate: { lte: dayEnd },
             endDate: { gte: dayStart },
           },
           select: { guardId: true, type: true, reason: true },
         })
-        const byGuard = new Map(leaves.map((l: any) => [l.guardId, l]))
+        const byGuard = new Map(leaves.map((l) => [l.guardId, l]))
         assignments.forEach((a: any) => {
           const l = byGuard.get(a.guard.id)
           if (l) {
@@ -83,6 +83,44 @@ export async function GET(req: Request) {
             a.excuseReason = l.reason
           }
         })
+
+        // Optionally inject excused guards who have NO assignment as pseudo
+        // roster entries so they still appear as cards on the public roster.
+        if (includeExcused) {
+          const missingIds = leaves.map((l) => l.guardId).filter((id) => !assignedGuardIds.has(id))
+          if (missingIds.length > 0) {
+            // Resolve shift name to filter guards by shift eligibility
+            let shiftName = ''
+            if (shiftId) {
+              const shift = await prisma.shift.findUnique({ where: { id: shiftId }, select: { name: true } })
+              shiftName = shift?.name || ''
+            }
+            const isDay = shiftName.toLowerCase().includes('day')
+            const isNight = shiftName.toLowerCase().includes('night')
+            const excusedGuards = await prisma.guard.findMany({
+              where: { id: { in: missingIds }, status: 'ACTIVE' },
+            })
+            for (const g of excusedGuards) {
+              const eligible =
+                g.shiftType === 'BOTH' ||
+                (isDay && g.shiftType === 'DAY') ||
+                (isNight && g.shiftType === 'NIGHT') ||
+                (!isDay && !isNight)
+              if (!eligible) continue
+              const l = byGuard.get(g.id)!
+              ;(assignments as any[]).push({
+                id: `excused-${g.id}`,
+                guard: g,
+                dutyPoint: { id: 'excused', name: 'Excused' },
+                shift: { id: shiftId || '', name: shiftName || 'Excused' },
+                date: new Date(date),
+                excused: true,
+                excuseType: l.type,
+                excuseReason: l.reason,
+              })
+            }
+          }
+        }
       }
     }
 
