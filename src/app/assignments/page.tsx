@@ -684,9 +684,8 @@ export default function AssignmentsPortalPage() {
     <div className="min-h-screen bg-slate-50/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans overflow-x-clip">
       {/* View-Only Top Navbar (No page switcher bar) */}
       <PortalNavbar
-        currentPage="assignments"
-        showPageSwitcher={false}
         subtitle="Daily Duty Assignments · Executive View"
+        hideProfile
         onPrint={handlePrint}
         extraActions={
           <>

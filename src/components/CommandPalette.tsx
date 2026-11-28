@@ -19,6 +19,7 @@ import {
   Calendar as CalendarIcon,
   Contact,
   ClipboardList,
+
   Search,
   User,
 } from 'lucide-react'
@@ -50,6 +51,7 @@ const PAGES: PageItem[] = [
   { kind: 'page', label: 'Duty Points', href: '/duty-points', icon: MapPin, keywords: 'posts locations zones' },
   { kind: 'page', label: 'Guard Directory', href: '/directory', icon: Contact, keywords: 'personnel directory roster assign' },
   { kind: 'page', label: 'Daily Assignments', href: '/assignments', icon: ClipboardList, keywords: 'duty roster schedule' },
+
   { kind: 'page', label: 'Leave & Exeats', href: '/leave', icon: CalendarCheck, keywords: 'leave exeat casual medical' },
   { kind: 'page', label: 'Attendance Heatmap', href: '/heatmap', icon: CalendarDays, keywords: 'calendar attendance history' },
   { kind: 'page', label: 'Schedule', href: '/schedule', icon: CalendarIcon, keywords: 'calendar planner shifts' },

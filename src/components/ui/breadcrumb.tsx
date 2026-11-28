@@ -12,6 +12,8 @@ export interface BreadcrumbProps {
   items: BreadcrumbItem[]
   backHref?: string
   backLabel?: string
+  homeHref?: string
+  homeLabel?: string
   className?: string
 }
 
@@ -19,6 +21,8 @@ export function Breadcrumb({
   items,
   backHref,
   backLabel,
+  homeHref = '/dashboard',
+  homeLabel = 'Dashboard',
   className,
 }: BreadcrumbProps) {
   // Determine immediate back link if not explicitly provided
@@ -38,12 +42,12 @@ export function Breadcrumb({
         {/* Home Root */}
         <li className="flex items-center shrink-0">
           <Link
-            href="/dashboard"
+            href={homeHref}
             className="flex items-center gap-1 text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 transition-colors p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800/60"
-            title="Dashboard Overview"
+            title={homeLabel}
           >
             <Home className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline font-medium">Dashboard</span>
+            <span className="hidden sm:inline font-medium">{homeLabel}</span>
           </Link>
         </li>
 

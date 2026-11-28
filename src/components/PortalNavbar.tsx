@@ -1,33 +1,40 @@
 'use client'
 
-import Link from 'next/link'
+import { signOut, useSession } from 'next-auth/react'
 import {
-  Users,
-  Shield,
   Printer,
   Sun,
   Moon,
+  User,
+  LogOut,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import Link from 'next/link'
 import { useTheme } from '@/components/theme-provider'
 
 interface PortalNavbarProps {
-  currentPage?: 'directory' | 'assignments'
   onPrint?: () => void
   extraActions?: React.ReactNode
-  showPageSwitcher?: boolean
   subtitle?: string
+  hideProfile?: boolean
 }
 
 export function PortalNavbar({
-  currentPage = 'assignments',
   onPrint,
   extraActions,
-  showPageSwitcher = false,
   subtitle,
+  hideProfile = false,
 }: PortalNavbarProps) {
   const { resolvedTheme, toggleTheme } = useTheme()
+  const { data: session } = useSession()
 
   return (
     <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-white/95 dark:bg-slate-900/95 border-b border-slate-200/80 dark:border-slate-800 transition-colors shadow-xs print:hidden">
@@ -54,39 +61,62 @@ export function PortalNavbar({
             </div>
           </div>
 
-          {/* Desktop Navigation Switcher Tabs (Only rendered when showPageSwitcher is true) */}
-          {showPageSwitcher && (
-            <nav className="hidden md:flex items-center p-1 rounded-xl bg-slate-100/90 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/60 text-xs font-semibold shadow-inner shrink-0">
-              <Link
-                href="/directory"
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-200',
-                  currentPage === 'directory'
-                    ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs font-bold'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                )}
-              >
-                <Users className="w-3.5 h-3.5" />
-                <span>Directory</span>
-              </Link>
-              <Link
-                href="/assignments"
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-200',
-                  currentPage === 'assignments'
-                    ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs font-bold'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                )}
-              >
-                <Shield className="w-3.5 h-3.5" />
-                <span>Duty Assignments</span>
-              </Link>
-            </nav>
-          )}
-
           {/* Action Tools */}
           <div className="flex items-center gap-2 ml-auto shrink-0">
             {extraActions}
+
+            {/* Profile / Sign out (only when signed in) */}
+            {session?.user && !hideProfile && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    title={session.user.name || 'Account'}
+                  >
+                    {session.user.photoUrl ? (
+                      <img
+                        src={session.user.photoUrl}
+                        alt={session.user.name || 'Profile'}
+                        className="w-7 h-7 rounded-full object-cover object-top"
+                      />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-[11px] font-bold">
+                        {(session.user.name || 'U').charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none text-slate-900 dark:text-white">
+                        {session.user.name || 'User'}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                        {session.user.email}
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/account" className="cursor-pointer">
+                      <User className="mr-2 h-4 w-4" />
+                      My Profile
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-red-600 dark:text-red-400 cursor-pointer"
+                    onClick={() => signOut({ callbackUrl: '/directory' })}
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
             {/* Theme Toggle */}
             <Button
@@ -119,37 +149,6 @@ export function PortalNavbar({
           </div>
         </div>
 
-        {/* Mobile Page Switcher Row (Only when showPageSwitcher is true, on small screens below md) */}
-        {showPageSwitcher && (
-          <div className="md:hidden pb-2.5 pt-0.5 flex justify-center">
-            <nav className="flex items-center w-full max-w-xs p-1 rounded-xl bg-slate-100/90 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/60 text-xs font-semibold shadow-inner">
-              <Link
-                href="/directory"
-                className={cn(
-                  'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg transition-all duration-200 text-center',
-                  currentPage === 'directory'
-                    ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs font-bold'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                )}
-              >
-                <Users className="w-3.5 h-3.5" />
-                <span>Directory</span>
-              </Link>
-              <Link
-                href="/assignments"
-                className={cn(
-                  'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg transition-all duration-200 text-center',
-                  currentPage === 'assignments'
-                    ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs font-bold'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                )}
-              >
-                <Shield className="w-3.5 h-3.5" />
-                <span>Duty Assignments</span>
-              </Link>
-            </nav>
-          </div>
-        )}
       </div>
     </header>
   )

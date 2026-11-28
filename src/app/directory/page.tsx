@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession, signIn, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -34,11 +34,16 @@ import {
   Wand2,
   CheckCircle2,
   AlertCircle,
-  RefreshCw,
+
   Building2,
   CheckCheck,
   ArrowLeftRight,
   User,
+  CalendarX,
+  Lock,
+  Eye,
+  EyeOff,
+  Loader2,
 } from 'lucide-react'
 import { PortalNavbar } from '@/components/PortalNavbar'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -98,10 +103,13 @@ export default function GuardDirectoryPage() {
   const router = useRouter()
   const { data: session, status: sessionStatus } = useSession()
   const canAssign = session?.user?.role === 'SUPERVISOR'
+  const supervisorScope = session?.user?.shiftScope || null
+  const [greeting, setGreeting] = useState('Good day')
   const [guards, setGuards] = useState<Guard[]>([])
   const [dutyPoints, setDutyPoints] = useState<DutyPoint[]>([])
   const [shifts, setShifts] = useState<Shift[]>([])
   const [dailyAssignments, setDailyAssignments] = useState<DailyAssignment[]>([])
+  const [excusedMap, setExcusedMap] = useState<Record<string, { type: string; reason: string | null }>>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [shiftTypeFilter, setShiftTypeFilter] = useState<'ALL' | 'DAY' | 'NIGHT'>('ALL')
   const [selectedDutyPointFilter, setSelectedDutyPointFilter] = useState('ALL')
@@ -109,6 +117,13 @@ export default function GuardDirectoryPage() {
   const [selectedShift, setSelectedShift] = useState('')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+
+  // Embedded supervisor login state
+  const [loginEmail, setLoginEmail] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
+  const [loginLoading, setLoginLoading] = useState(false)
+  const [loginError, setLoginError] = useState('')
+  const [showLoginPassword, setShowLoginPassword] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
 
   // Assign Mode State
@@ -194,6 +209,44 @@ export default function GuardDirectoryPage() {
     }
   }, [selectedDate, selectedShift, fetchDailyAssignments])
 
+  // Time-of-day greeting for the signed-in supervisor
+  useEffect(() => {
+    const hour = new Date().getHours()
+    if (hour < 12) setGreeting('Good morning')
+    else if (hour < 17) setGreeting('Good afternoon')
+    else setGreeting('Good evening')
+  }, [])
+
+  // Fetch approved leave/excuses overlapping the selected date (shows "Excused" instead of "Unassigned")
+  useEffect(() => {
+    if (!selectedDate) return
+    let cancelled = false
+    const dayStart = new Date(selectedDate)
+    dayStart.setHours(0, 0, 0, 0)
+    const dayEnd = new Date(selectedDate)
+    dayEnd.setHours(23, 59, 59, 999)
+
+    fetch('/api/leave?status=APPROVED')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.records) return
+        const map: Record<string, { type: string; reason: string | null }> = {}
+        data.records.forEach((r: any) => {
+          const s = new Date(r.startDate)
+          const e = new Date(r.endDate)
+          e.setHours(23, 59, 59, 999)
+          if (s <= dayEnd && e >= dayStart && !map[r.guardId]) {
+            map[r.guardId] = { type: r.type, reason: r.reason }
+          }
+        })
+        setExcusedMap(map)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [selectedDate])
+
   // Helper map: Guard ID -> Current Assigned Duty Point
   const assignmentMap = useMemo(() => {
     const map = new Map<string, { dutyPointId: string; dutyPointName: string }>()
@@ -211,6 +264,7 @@ export default function GuardDirectoryPage() {
     const q = searchQuery.trim().toLowerCase()
     const selectedShiftObj = shifts.find((s) => s.id === selectedShift)
     const isDayShift = selectedShiftObj?.name.toLowerCase().includes('day') ?? true
+    const scopedType = canAssign && (supervisorScope === 'DAY' || supervisorScope === 'NIGHT') ? supervisorScope : null
 
     return guards.filter((guard) => {
       // Non-duty staff (e.g. senior supervisors) never appear in assign mode
@@ -231,9 +285,10 @@ export default function GuardDirectoryPage() {
         return matchesSearch && matchesShift
       }
 
-      // Shift type filter
-      const matchesShiftType =
-        shiftTypeFilter === 'ALL' || guard.shiftType === shiftTypeFilter
+      // Shift type filter — scoped supervisors are locked to their shift's guards (incl. BOTH)
+      const matchesShiftType = scopedType
+        ? guard.shiftType === scopedType || guard.shiftType === 'BOTH'
+        : shiftTypeFilter === 'ALL' || guard.shiftType === shiftTypeFilter
 
       // Duty point filter
       const assigned = assignmentMap.get(guard.id)
@@ -244,7 +299,7 @@ export default function GuardDirectoryPage() {
 
       return matchesSearch && matchesShiftType && matchesDutyPoint
     })
-  }, [guards, searchQuery, assignMode, shifts, selectedShift, shiftTypeFilter, selectedDutyPointFilter, assignmentMap])
+  }, [guards, searchQuery, assignMode, shifts, selectedShift, shiftTypeFilter, selectedDutyPointFilter, assignmentMap, canAssign, supervisorScope])
 
   const isAllSelected = useMemo(() => {
     return filteredGuards.length > 0 && filteredGuards.every((g) => selectedGuardIds.has(g.id))
@@ -391,13 +446,27 @@ export default function GuardDirectoryPage() {
 
     setSaving(true)
     try {
-      // Construct batch array for only modified guards
-      const batchPayload = Array.from(modifiedGuards).map((guardId) => ({
-        guardId,
-        dutyPointId: assignmentsDraft[guardId] || '',
-        shiftId: selectedShift,
-        date: selectedDate,
-      }))
+      const EXCUSE_LABELS: Record<string, string> = {
+        SICK: 'Sick / Ill',
+        PERMISSION: 'Permission Granted',
+        OTHER: 'Other',
+      }
+
+      // Split modified guards into post assignments vs excuse-duty selections
+      const excusedEntries = Array.from(modifiedGuards)
+        .map((guardId) => ({ guardId, val: assignmentsDraft[guardId] || '' }))
+        .filter((e) => e.val.startsWith('excused:'))
+
+      // Construct batch array for only modified guards (excused guards get '' → assignment cleared)
+      const batchPayload = Array.from(modifiedGuards).map((guardId) => {
+        const val = assignmentsDraft[guardId] || ''
+        return {
+          guardId,
+          dutyPointId: val.startsWith('excused:') ? '' : val,
+          shiftId: selectedShift,
+          date: selectedDate,
+        }
+      })
 
       const res = await postDailyAssignments({ batch: batchPayload })
 
@@ -410,10 +479,32 @@ export default function GuardDirectoryPage() {
         throw new Error('Server returned error while saving assignments')
       }
 
+      // Create approved EXCUSED leave records for excused guards
+      let excusedCount = 0
+      for (const e of excusedEntries) {
+        const reasonKey = e.val.split(':')[1] || 'OTHER'
+        const leaveRes = await fetch('/api/leave', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            guardId: e.guardId,
+            type: 'EXCUSED',
+            startDate: selectedDate,
+            endDate: selectedDate,
+            reason: EXCUSE_LABELS[reasonKey] || 'Excused',
+            status: 'APPROVED',
+          }),
+        })
+        if (leaveRes.ok) excusedCount++
+      }
+
       await fetchDailyAssignments(true)
       setAssignMode(false)
       setModifiedGuards(new Set())
-      toast.success(`Successfully saved ${batchPayload.length} duty point assignments!`)
+      toast.success(
+        `Saved ${batchPayload.length} updates${excusedCount ? ` including ${excusedCount} excuse${excusedCount !== 1 ? 's' : ''}` : ''}!`,
+        'Roster Saved'
+      )
     } catch (error) {
       console.error('Error saving assignments:', error)
       toast.error('Failed to save assignments. Please try again.')
@@ -482,13 +573,12 @@ export default function GuardDirectoryPage() {
   const selectedShiftObj = useMemo(() => shifts.find((s) => s.id === selectedShift), [shifts, selectedShift])
   const isDayShift = useMemo(() => selectedShiftObj?.name.toLowerCase().includes('day') ?? true, [selectedShiftObj])
 
-  // Supervisor shift scoping: DAY/NIGHT-scoped supervisors are locked to their shift in assign mode
-  const supervisorScope = session?.user?.shiftScope || null
+  // Supervisor shift scoping: DAY/NIGHT-scoped supervisors are locked to their shift
   const scopedShiftId = useMemo(() => {
-    if (!assignMode || !canAssign || (supervisorScope !== 'DAY' && supervisorScope !== 'NIGHT')) return null
+    if (!canAssign || (supervisorScope !== 'DAY' && supervisorScope !== 'NIGHT')) return null
     const needle = supervisorScope === 'DAY' ? 'day' : 'night'
     return shifts.find((s) => s.name.toLowerCase().includes(needle))?.id || null
-  }, [assignMode, canAssign, supervisorScope, shifts])
+  }, [canAssign, supervisorScope, shifts])
   const visibleShifts = useMemo(
     () => (scopedShiftId ? shifts.filter((s) => s.id === scopedShiftId) : shifts),
     [shifts, scopedShiftId]
@@ -686,27 +776,184 @@ export default function GuardDirectoryPage() {
     }
   }
 
+  // Embedded supervisor login handler
+  const handleDirectoryLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoginError('')
+    setLoginLoading(true)
+    try {
+      const result = await signIn('credentials', {
+        email: loginEmail,
+        password: loginPassword,
+        redirect: false,
+      })
+      if (result?.error) {
+        setLoginError('Invalid email or password. Please try again.')
+        toast.error('Authentication failed: Please check your credentials.', 'Sign In Error')
+      } else {
+        toast.success('Signed in successfully.', 'Welcome')
+      }
+      // On success the session updates and this page re-renders automatically
+    } catch {
+      setLoginError('An unexpected error occurred. Please try again.')
+    } finally {
+      setLoginLoading(false)
+    }
+  }
+
+  // Unauthenticated visitors see the supervisor login screen
+  if (sessionStatus === 'unauthenticated') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f5f7fb] dark:bg-slate-950 px-4 py-8">
+        <div className="w-full max-w-[420px] bg-white dark:bg-slate-900 rounded-[24px] shadow-[0_20px_50px_rgba(15,23,42,0.08)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-slate-100 dark:border-slate-800 overflow-hidden">
+          <div className="w-full h-1.5 flex">
+            <div className="flex-1 bg-[#0b2d64]" />
+            <div className="flex-1 bg-[#e5a823]" />
+            <div className="flex-1 bg-[#cc1f2e]" />
+          </div>
+          <div className="p-7 sm:p-9">
+            <div className="flex justify-center mb-5">
+              <div className="w-[72px] h-[72px] rounded-2xl border border-slate-100 dark:border-slate-800 bg-white shadow-sm flex items-center justify-center p-3">
+                <img src="/pcc.png" alt="PCC Logo" className="w-full h-full object-contain" />
+              </div>
+            </div>
+            <div className="text-center mb-6">
+              <h1 className="text-xl font-bold text-[#0c2b58] dark:text-white tracking-tight">
+                Guard Directory & Assignment
+              </h1>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                Sign in with your supervisor credentials to continue
+              </p>
+            </div>
+
+            {loginError && (
+              <div className="mb-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 px-3.5 py-2.5 rounded-xl text-xs font-medium flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleDirectoryLogin} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-2">
+                  EMAIL OR USERNAME
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <User className="h-4 w-4" />
+                  </div>
+                  <input
+                    type="email"
+                    required
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="supervisor@pcc.gov.gh"
+                    className="w-full h-12 pl-10 pr-4 bg-[#edf2f9] dark:bg-slate-800/80 border border-transparent focus:border-[#0b2d64]/40 focus:bg-white dark:focus:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 rounded-xl text-sm font-medium transition-all outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-2">
+                  PASSWORD
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Lock className="h-4 w-4" />
+                  </div>
+                  <input
+                    type={showLoginPassword ? 'text' : 'password'}
+                    required
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full h-12 pl-10 pr-10 bg-[#edf2f9] dark:bg-slate-800/80 border border-transparent focus:border-[#0b2d64]/40 focus:bg-white dark:focus:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 rounded-xl text-sm font-medium transition-all outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPassword(!showLoginPassword)}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    tabIndex={-1}
+                  >
+                    {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={loginLoading}
+                className="w-full h-12 bg-[#0b2d64] hover:bg-[#08224d] text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-sm active:scale-[0.99] disabled:opacity-50 transition-all"
+              >
+                {loginLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Signing in...</span>
+                  </>
+                ) : (
+                  <span>Sign In to Directory</span>
+                )}
+              </button>
+            </form>
+
+            <p className="mt-6 text-center text-[11px] text-slate-400">
+              Contact your administrator if you need an account.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Session still resolving — show a brief loader
+  if (sessionStatus === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    )
+  }
+
+  // Directory & assignment is restricted to supervisor accounts
+  if (session?.user?.role !== 'SUPERVISOR') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f5f7fb] dark:bg-slate-950 px-4 py-8">
+        <div className="w-full max-w-[420px] bg-white dark:bg-slate-900 rounded-[24px] shadow-[0_20px_50px_rgba(15,23,42,0.08)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-slate-100 dark:border-slate-800 overflow-hidden text-center">
+          <div className="w-full h-1.5 flex">
+            <div className="flex-1 bg-[#0b2d64]" />
+            <div className="flex-1 bg-[#e5a823]" />
+            <div className="flex-1 bg-[#cc1f2e]" />
+          </div>
+          <div className="p-8">
+            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 flex items-center justify-center">
+              <Shield className="h-7 w-7 text-rose-500" />
+            </div>
+            <h1 className="text-lg font-bold text-[#0c2b58] dark:text-white">Supervisor Access Only</h1>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              The guard directory and duty assignment portal is restricted to supervisor accounts.
+              {session?.user?.name ? ` You are signed in as ${session.user.name} (${session.user.role}).` : ''}
+            </p>
+            <div className="mt-6 flex items-center justify-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => router.push('/dashboard')} className="text-xs">
+                Go to Dashboard
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                className="text-xs text-slate-500"
+              >
+                Sign Out
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-slate-50/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans overflow-x-clip">
       {/* Top Navbar */}
-      <PortalNavbar
-        currentPage="directory"
-        showPageSwitcher={true}
-        onPrint={handlePrint}
-        extraActions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fetchDailyAssignments(true)}
-            disabled={refreshing}
-            className="h-9 text-xs border-slate-200 dark:border-slate-800"
-            title="Refresh personnel directory"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            <span className="hidden md:inline ml-1.5">Refresh</span>
-          </Button>
-        }
-      />
+      <PortalNavbar />
 
       {/* Printable Official Header */}
       <div className="hidden print:block p-6 border-b border-slate-300 text-black">
@@ -730,6 +977,19 @@ export default function GuardDirectoryPage() {
       </div>
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 print:p-4 print:max-w-none pb-24">
+        {/* Greeting Header */}
+        <div className="print:hidden flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <div className="space-y-0.5">
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+              {greeting}
+              {session?.user?.name ? `, ${session.user.name.trim().split(/\s+/)[0]}` : ''}
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Personnel directory & deployment overview for {new Date(selectedDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · {selectedShiftObj?.name || 'Selected Shift'}.
+            </p>
+          </div>
+        </div>
+
         {/* Banner Section */}
         <div className="print:hidden flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white shadow-md border border-slate-800">
           <div className="space-y-1">
@@ -757,17 +1017,6 @@ export default function GuardDirectoryPage() {
               <Shield className="w-3.5 h-3.5" />
               <span>{assignMode ? 'Exit Assign Mode' : '⚡ Assign Mode'}</span>
             </Button>
-            {sessionStatus === 'unauthenticated' && !assignMode && (
-              <Button
-                onClick={() => router.push('/login')}
-                variant="outline"
-                size="sm"
-                className="text-xs font-bold gap-1.5 bg-white/10 hover:bg-white/20 text-white border border-white/20"
-              >
-                <User className="w-3.5 h-3.5" />
-                <span>Supervisor Sign In</span>
-              </Button>
-            )}
             {selectedGuardIds.size === 2 && (
               <Button
                 onClick={swapPosts}
@@ -782,20 +1031,20 @@ export default function GuardDirectoryPage() {
             <Button
               onClick={exportCSV}
               variant="secondary"
-              size="sm"
-              className="bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-semibold gap-1.5"
+              size="icon"
+              className="bg-white/10 hover:bg-white/20 text-white border border-white/20 h-9 w-9"
+              title="Export CSV"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Export CSV</span>
             </Button>
             <Button
               onClick={handlePrint}
               variant="secondary"
-              size="sm"
-              className="bg-white text-slate-900 hover:bg-slate-100 text-xs font-bold gap-1.5 shadow-xs"
+              size="icon"
+              className="bg-white text-slate-900 hover:bg-slate-100 h-9 w-9"
+              title="Print"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>Print</span>
             </Button>
           </div>
         </div>
@@ -954,8 +1203,9 @@ export default function GuardDirectoryPage() {
                     Guard Type
                   </Label>
                   <Select
-                    value={shiftTypeFilter}
+                    value={canAssign && (supervisorScope === 'DAY' || supervisorScope === 'NIGHT') ? supervisorScope : shiftTypeFilter}
                     onValueChange={(val: 'ALL' | 'DAY' | 'NIGHT') => setShiftTypeFilter(val)}
+                    disabled={canAssign && (supervisorScope === 'DAY' || supervisorScope === 'NIGHT')}
                   >
                     <SelectTrigger className="h-9 text-xs sm:text-sm bg-slate-50/70 dark:bg-slate-800/60 font-medium">
                       <SelectValue placeholder="All types..." />
@@ -1276,6 +1526,9 @@ export default function GuardDirectoryPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="unassigned">-- Unassigned --</SelectItem>
+                                  <SelectItem value="excused:SICK" className="text-xs text-violet-600 dark:text-violet-400">🤒 Excused — Sick / Ill</SelectItem>
+                                  <SelectItem value="excused:PERMISSION" className="text-xs text-violet-600 dark:text-violet-400">📋 Excused — Permission</SelectItem>
+                                  <SelectItem value="excused:OTHER" className="text-xs text-violet-600 dark:text-violet-400">❗ Excused — Other</SelectItem>
                                   {sortedDutyPoints.map((dp) => (
                                     <SelectItem key={dp.id} value={dp.id} className="text-xs">
                                       {dp.id === 'off-duty' || dp.name.toLowerCase().includes('off duty')
@@ -1333,6 +1586,13 @@ export default function GuardDirectoryPage() {
                                 </span>
                               )
                             })()
+                          ) : excusedMap[guard.id] ? (
+                            <span
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 font-semibold text-[11px]"
+                              title={excusedMap[guard.id].reason || 'Approved excuse'}
+                            >
+                              {excusedMap[guard.id].type === 'EXCUSED' ? '🤒' : '🏥'} Excused
+                            </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 text-[11px] font-medium border border-dashed border-slate-300 dark:border-slate-700">
                               Unassigned
@@ -1457,6 +1717,9 @@ export default function GuardDirectoryPage() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="unassigned">-- Unassigned --</SelectItem>
+                                <SelectItem value="excused:SICK" className="text-xs text-violet-600 dark:text-violet-400">🤒 Excused — Sick / Ill</SelectItem>
+                                <SelectItem value="excused:PERMISSION" className="text-xs text-violet-600 dark:text-violet-400">📋 Excused — Permission</SelectItem>
+                                <SelectItem value="excused:OTHER" className="text-xs text-violet-600 dark:text-violet-400">❗ Excused — Other</SelectItem>
                                 {sortedDutyPoints.map((dp) => (
                                   <SelectItem key={dp.id} value={dp.id} className="text-xs">
                                     {dp.id === 'off-duty' || dp.name.toLowerCase().includes('off duty')
@@ -1526,6 +1789,13 @@ export default function GuardDirectoryPage() {
                             </div>
                           )
                         })()
+                      ) : excusedMap[guard.id] ? (
+                        <div className="w-full inline-flex items-center justify-center gap-1.5 bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800 px-3 py-1.5 rounded-xl">
+                          <CalendarX className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                          <span className="font-bold text-xs text-violet-700 dark:text-violet-300">
+                            Excused{excusedMap[guard.id].reason ? ` — ${excusedMap[guard.id].reason}` : ''}
+                          </span>
+                        </div>
                       ) : (
                         <div className="w-full inline-flex items-center justify-center gap-1.5 bg-slate-100/80 dark:bg-slate-800/70 border border-dashed border-slate-300 dark:border-slate-700 px-3 py-1.5 rounded-xl">
                           <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
