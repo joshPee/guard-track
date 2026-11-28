@@ -46,6 +46,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import { PortalNavbar } from '@/components/PortalNavbar'
+import { GuardCard } from '@/components/GuardCard'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from '@/components/ui/toast'
 import {
@@ -1067,50 +1068,30 @@ export default function GuardDirectoryPage() {
 
         {/* Assign Mode Banner Indicator */}
         {assignMode && (
-          <div className="print:hidden p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-amber-200/80 dark:bg-amber-800/60 flex items-center justify-center shrink-0">
-                <Shield className="w-4 h-4 text-amber-800 dark:text-amber-200" />
+          <div className="print:hidden relative rounded-2xl bg-white dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-400" />
+            <div className="p-3.5 px-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20 flex items-center justify-center shrink-0">
+                  <Shield className="w-4 h-4" />
+                </div>
+                <div className="text-xs min-w-0">
+                  <p className="font-semibold text-slate-900 dark:text-white flex flex-wrap items-center gap-2">
+                    <span>Assign Mode Active ({selectedShiftObj?.name || 'Selected Shift'})</span>
+                    {scopedShiftId && supervisorScope && (
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                        {supervisorScope === 'DAY' ? 'Day shift only' : 'Night shift only'}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-slate-500 dark:text-slate-400">
+                    Change any guard&apos;s post below or select 2 guards to swap posts, then save from the bottom bar.
+                  </p>
+                </div>
               </div>
-              <div className="text-xs">
-                <p className="font-bold">
-                  Assign Mode Active ({selectedShiftObj?.name || 'Selected Shift'})
-                  {scopedShiftId && supervisorScope && (
-                    <span className="ml-2 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/20">
-                      {supervisorScope === 'DAY' ? 'Day shift only' : 'Night shift only'}
-                    </span>
-                  )}
-                </p>
-                <p className="text-amber-700 dark:text-amber-300">
-                  Select a duty point dropdown for any guard below, then click &ldquo;Save Assignments&rdquo;.
-                  {selectedGuardIds.size === 2 && (
-                    <span className="ml-2 font-semibold text-purple-700 dark:text-purple-300">
-                      💡 Select 2 guards to swap their posts instantly!
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={autoAssignDefaults}
-                className="h-8 text-xs bg-white dark:bg-amber-900/40 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 font-medium gap-1.5"
-              >
-                <Wand2 className="w-3.5 h-3.5" />
-                <span>Auto-Assign Defaults</span>
-              </Button>
-              <Button
-                size="sm"
-                onClick={saveAssignments}
-                disabled={saving || modifiedGuards.size === 0}
-                className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 shadow-xs"
-              >
-                <Save className="w-3.5 h-3.5" />
-                <span>{saving ? 'Saving...' : `Save Changes (${modifiedGuards.size})`}</span>
-              </Button>
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/60 shrink-0">
+                {modifiedGuards.size} unsaved
+              </span>
             </div>
           </div>
         )}
@@ -1161,12 +1142,15 @@ export default function GuardDirectoryPage() {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <Input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="h-9 text-xs sm:text-sm bg-slate-50/70 dark:bg-slate-800/60 font-medium"
-                  />
+                  <div className="relative flex-1 min-w-0">
+                    <Input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="h-9 w-full pr-9 text-xs sm:text-sm bg-slate-50/70 dark:bg-slate-800/60 font-medium [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:top-0 [&::-webkit-calendar-picker-indicator]:bottom-0 [&::-webkit-calendar-picker-indicator]:w-9 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                    />
+                    <Calendar className="w-4 h-4 text-slate-400 pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" />
+                  </div>
                   <Button
                     variant="outline"
                     size="icon"
@@ -1339,8 +1323,9 @@ export default function GuardDirectoryPage() {
               </div>
 
               {/* Grid / Table Toggle & Count */}
-              <div className="flex items-center gap-2.5 ml-auto">
-                <span className="text-[11px] text-slate-400">
+              <div className="flex items-center gap-2.5 ml-auto shrink-0">
+                <span className="text-[11px] text-slate-400 inline-flex items-center gap-1.5 whitespace-nowrap">
+                  {refreshing && <Loader2 className="w-3 h-3 animate-spin text-blue-500" />}
                   {selectedGuardIds.size > 0 ? (
                     <span className="font-semibold text-blue-600 dark:text-blue-400">
                       {selectedGuardIds.size} of {filteredGuards.length} selected
@@ -1350,28 +1335,30 @@ export default function GuardDirectoryPage() {
                   )}
                 </span>
 
-                <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800">
+                <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800">
                   <button
+                    type="button"
                     onClick={() => setViewMode('grid')}
-                    className={`p-1.5 rounded-md transition-all ${
+                    className={`w-7 h-7 inline-flex items-center justify-center rounded-md transition-all ${
                       viewMode === 'grid'
                         ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
                         : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                     }`}
                     title="Grid Card View"
                   >
-                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <LayoutGrid className="w-4 h-4" />
                   </button>
                   <button
+                    type="button"
                     onClick={() => setViewMode('table')}
-                    className={`p-1.5 rounded-md transition-all ${
+                    className={`w-7 h-7 inline-flex items-center justify-center rounded-md transition-all ${
                       viewMode === 'table'
                         ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
                         : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                     }`}
                     title="Compact Table View"
                   >
-                    <List className="w-3.5 h-3.5" />
+                    <List className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -1380,44 +1367,64 @@ export default function GuardDirectoryPage() {
         </Card>
 
         {/* Operational Statistics */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:grid-cols-4">
-          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
-            <CardContent className="p-3.5 text-center">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Active Force</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-                {stats.total}
-              </p>
-              <p className="text-[10px] text-slate-400 mt-0.5">Active personnel</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 print:grid-cols-4">
+          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-sm transition-all bg-white dark:bg-slate-900/95 rounded-2xl">
+            <CardContent className="p-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Active Force</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight tabular-nums mt-0.5">
+                  {stats.total}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Active personnel</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
+                <Users className="w-5 h-5" />
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
-            <CardContent className="p-3.5 text-center">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Campus Posts</p>
-              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight mt-0.5">
-                {stats.campusCount}
-              </p>
-              <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">On-site duty posts</p>
+          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-sm transition-all bg-white dark:bg-slate-900/95 rounded-2xl">
+            <CardContent className="p-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Campus Posts</p>
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tracking-tight tabular-nums mt-0.5">
+                  {stats.campusCount}
+                </p>
+                <p className="text-[11px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">On-site duty posts</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <MapPin className="w-5 h-5" />
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
-            <CardContent className="p-3.5 text-center">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Outside Deployed</p>
-              <p className="text-2xl font-black text-blue-600 dark:text-blue-400 tracking-tight mt-0.5">
-                {stats.outsideCount}
-              </p>
-              <p className="text-[10px] text-blue-500/80 dark:text-blue-400/80 mt-0.5">External deployment</p>
+          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-sm transition-all bg-white dark:bg-slate-900/95 rounded-2xl">
+            <CardContent className="p-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Outside Deployed</p>
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 tracking-tight tabular-nums mt-0.5">
+                  {stats.outsideCount}
+                </p>
+                <p className="text-[11px] text-blue-500/80 dark:text-blue-400/80 mt-0.5">External deployment</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <Building2 className="w-5 h-5" />
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
-            <CardContent className="p-3.5 text-center">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Off Duty</p>
-              <p className="text-2xl font-black text-slate-700 dark:text-slate-300 tracking-tight mt-0.5">
-                {stats.offDutyCount}
-              </p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Scheduled day off</p>
+          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-sm transition-all bg-white dark:bg-slate-900/95 rounded-2xl">
+            <CardContent className="p-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Off Duty</p>
+                <p className="text-2xl font-bold text-slate-700 dark:text-slate-300 tracking-tight tabular-nums mt-0.5">
+                  {stats.offDutyCount}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Scheduled day off</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center shrink-0">
+                <Moon className="w-5 h-5" />
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -1429,18 +1436,17 @@ export default function GuardDirectoryPage() {
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
-                className="p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-3"
+                className="p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-3"
               >
-                <Skeleton className="h-7 w-3/4 mx-auto rounded-lg" />
-                <div className="flex justify-center">
-                  <Skeleton className="h-20 w-20 rounded-full" />
+                <Skeleton className="h-7 w-full rounded-xl" />
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-12 w-12 rounded-full shrink-0" />
+                  <div className="space-y-1.5 flex-1">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
                 </div>
-                <div className="space-y-1.5 text-center">
-                  <Skeleton className="h-4 w-32 mx-auto" />
-                  <Skeleton className="h-3 w-16 mx-auto" />
-                </div>
-                <Skeleton className="h-5 w-24 mx-auto rounded-full" />
-                <Skeleton className="h-6 w-full rounded-lg" />
+                <Skeleton className="h-8 w-full rounded-lg" />
               </div>
             ))}
           </div>
@@ -1705,244 +1711,91 @@ export default function GuardDirectoryPage() {
           </div>
         ) : (
           /* Modern Card Grid View */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 transition-opacity ${refreshing ? 'opacity-60' : ''}`}>
             {filteredGuards.map((guard) => {
               const assignedInfo = assignmentMap.get(guard.id)
               const isModified = modifiedGuards.has(guard.id)
               const currentDraftVal = assignmentsDraft[guard.id] ?? assignedInfo?.dutyPointId ?? ''
               const isSelected = selectedGuardIds.has(guard.id)
+              const excuse = excusedMap[guard.id]
+
+              const assignTopSlot = assignMode ? (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Select
+                      value={currentDraftVal}
+                      onValueChange={(value) => updateAssignment(guard.id, value)}
+                    >
+                      <SelectTrigger className="h-9 text-xs bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/80 font-bold text-emerald-900 dark:text-emerald-200 flex-1">
+                        <SelectValue placeholder="-- Unassigned --" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unassigned">-- Unassigned --</SelectItem>
+                        <SelectItem value="excused:SICK" className="text-xs text-violet-600 dark:text-violet-400">🤒 Excused — Sick / Ill</SelectItem>
+                        <SelectItem value="excused:PERMISSION" className="text-xs text-violet-600 dark:text-violet-400">📋 Excused — Permission</SelectItem>
+                        <SelectItem value="excused:OTHER" className="text-xs text-violet-600 dark:text-violet-400">❗ Excused — Other</SelectItem>
+                        {sortedDutyPoints.map((dp) => (
+                          <SelectItem key={dp.id} value={dp.id} className="text-xs">
+                            {dp.id === 'off-duty' || dp.name.toLowerCase().includes('off duty')
+                              ? `🌙 ${dp.name}`
+                              : dp.id === 'outside-deployment' || dp.name.toLowerCase().includes('outside')
+                              ? `🌐 ${dp.name}`
+                              : dp.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={currentDraftVal === offDutyDp?.id ? 'secondary' : 'outline'}
+                      onClick={() => {
+                        if (offDutyDp) {
+                          updateAssignment(guard.id, currentDraftVal === offDutyDp.id ? 'unassigned' : offDutyDp.id)
+                        }
+                      }}
+                      className={`h-9 px-2 text-xs font-semibold shrink-0 ${
+                        currentDraftVal === offDutyDp?.id
+                          ? 'bg-slate-800 text-white dark:bg-slate-700'
+                          : 'text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                      }`}
+                      title={currentDraftVal === offDutyDp?.id ? 'Guard is Off Duty' : 'Mark Off Duty'}
+                    >
+                      <Moon className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                  {isModified && (
+                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block text-center">
+                      ● Pending Save
+                    </span>
+                  )}
+                  {excuse && (
+                    <span
+                      className="text-[10px] font-bold text-violet-600 dark:text-violet-400 block text-center truncate"
+                      title={excuse.reason || 'Approved excuse'}
+                    >
+                      🏥 Excused{excuse.reason ? ` — ${excuse.reason}` : ''}
+                    </span>
+                  )}
+                </div>
+              ) : undefined
 
               return (
-                <Card
+                <GuardCard
                   key={guard.id}
-                  className={`group border shadow-xs hover:shadow-md transition-all duration-200 bg-white dark:bg-slate-900/90 rounded-2xl overflow-hidden flex flex-col justify-between ${
-                    isSelected
-                      ? 'border-blue-500 ring-2 ring-blue-500/50 bg-blue-50/20 dark:bg-blue-950/25'
-                      : isModified
-                      ? 'border-amber-400 ring-2 ring-amber-300/40 dark:border-amber-600 dark:ring-amber-800/40'
-                      : 'border-slate-200/80 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600'
-                  }`}
-                >
-                  <CardContent className="p-4 space-y-3.5 flex-1 flex flex-col justify-between">
-                    {/* Top Duty Point Badge or Selector with Checkbox */}
-                    <div className="flex items-center gap-2">
-                      <label
-                        className="flex items-center justify-center p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0"
-                        title={isSelected ? 'Deselect guard' : 'Select guard for batch action'}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleGuardSelection(guard.id)}
-                          className="w-4 h-4 rounded text-blue-600 border-slate-300 dark:border-slate-700 focus:ring-blue-500 cursor-pointer"
-                        />
-                      </label>
-
-                      <div className="flex-1 min-w-0 text-center">
-                      {assignMode ? (
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-1.5">
-                            <Select
-                              value={currentDraftVal}
-                              onValueChange={(value) => updateAssignment(guard.id, value)}
-                            >
-                              <SelectTrigger className="h-9 text-xs bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/80 font-bold text-emerald-900 dark:text-emerald-200 flex-1">
-                                <SelectValue placeholder="-- Unassigned --" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="unassigned">-- Unassigned --</SelectItem>
-                                <SelectItem value="excused:SICK" className="text-xs text-violet-600 dark:text-violet-400">🤒 Excused — Sick / Ill</SelectItem>
-                                <SelectItem value="excused:PERMISSION" className="text-xs text-violet-600 dark:text-violet-400">📋 Excused — Permission</SelectItem>
-                                <SelectItem value="excused:OTHER" className="text-xs text-violet-600 dark:text-violet-400">❗ Excused — Other</SelectItem>
-                                {sortedDutyPoints.map((dp) => (
-                                  <SelectItem key={dp.id} value={dp.id} className="text-xs">
-                                    {dp.id === 'off-duty' || dp.name.toLowerCase().includes('off duty')
-                                      ? `🌙 ${dp.name}`
-                                      : dp.id === 'outside-deployment' || dp.name.toLowerCase().includes('outside')
-                                      ? `🌐 ${dp.name}`
-                                      : dp.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant={currentDraftVal === offDutyDp?.id ? 'secondary' : 'outline'}
-                              onClick={() => {
-                                if (offDutyDp) {
-                                  updateAssignment(guard.id, currentDraftVal === offDutyDp.id ? 'unassigned' : offDutyDp.id)
-                                }
-                              }}
-                              className={`h-9 px-2 text-xs font-semibold shrink-0 ${
-                                currentDraftVal === offDutyDp?.id
-                                  ? 'bg-slate-800 text-white dark:bg-slate-700'
-                                  : 'text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700'
-                              }`}
-                              title={currentDraftVal === offDutyDp?.id ? 'Guard is Off Duty' : 'Mark Off Duty'}
-                            >
-                              <Moon className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                          {isModified && (
-                            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block">
-                              ● Pending Save
-                            </span>
-                          )}
-                          {excusedMap[guard.id] && (
-                            <span
-                              className="text-[10px] font-bold text-violet-600 dark:text-violet-400 block"
-                              title={excusedMap[guard.id].reason || 'Approved excuse'}
-                            >
-                              🏥 Excused{excusedMap[guard.id].reason ? ` — ${excusedMap[guard.id].reason}` : ''}
-                            </span>
-                          )}
-                        </div>
-                      ) : assignedInfo ? (
-                        <div className="space-y-1.5">
-                        {(() => {
-                          const isOffDuty = assignedInfo.dutyPointName.toLowerCase().includes('off duty')
-                          const isOutside = assignedInfo.dutyPointName.toLowerCase().includes('outside')
-                          if (isOffDuty) {
-                            return (
-                              <div className="w-full inline-flex items-center justify-center gap-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-1.5 rounded-xl shadow-2xs text-slate-700 dark:text-slate-300">
-                                <Moon className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                                <span className="font-bold text-xs truncate max-w-[200px]">
-                                  Off Duty
-                                </span>
-                              </div>
-                            )
-                          }
-                          if (isOutside) {
-                            return (
-                              <div className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/80 px-3 py-1.5 rounded-xl shadow-2xs text-blue-800 dark:text-blue-300">
-                                <Building2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                                <span className="font-bold text-xs truncate max-w-[200px]">
-                                  Outside Deployment
-                                </span>
-                              </div>
-                            )
-                          }
-                          return (
-                            <div className="w-full inline-flex items-center justify-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/80 px-3 py-1.5 rounded-xl shadow-2xs">
-                              <MapPin className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                              <span className="font-bold text-xs text-emerald-800 dark:text-emerald-300 truncate max-w-[200px]">
-                                {assignedInfo.dutyPointName}
-                              </span>
-                            </div>
-                          )
-                        })()}
-                        {excusedMap[guard.id] && (
-                          <div className="w-full inline-flex items-center justify-center gap-1.5 bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800 px-3 py-1 rounded-lg">
-                            <CalendarX className="h-3 w-3 text-violet-500 shrink-0" />
-                            <span className="font-bold text-[11px] text-violet-700 dark:text-violet-300">
-                              Excused{excusedMap[guard.id].reason ? ` — ${excusedMap[guard.id].reason}` : ''}
-                            </span>
-                          </div>
-                        )}
-                        </div>
-                      ) : excusedMap[guard.id] ? (
-                        <div className="w-full inline-flex items-center justify-center gap-1.5 bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800 px-3 py-1.5 rounded-xl">
-                          <CalendarX className="h-3.5 w-3.5 text-violet-500 shrink-0" />
-                          <span className="font-bold text-xs text-violet-700 dark:text-violet-300">
-                            Excused{excusedMap[guard.id].reason ? ` — ${excusedMap[guard.id].reason}` : ''}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="w-full inline-flex items-center justify-center gap-1.5 bg-slate-100/80 dark:bg-slate-800/70 border border-dashed border-slate-300 dark:border-slate-700 px-3 py-1.5 rounded-xl">
-                          <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                          <span className="font-medium text-xs text-slate-500 dark:text-slate-400">
-                            {guard.defaultDutyPoint ? `Default: ${guard.defaultDutyPoint.name}` : 'Unassigned'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                    {/* Guard Photo or Initials Avatar - Clickable for details */}
-                    <div className="flex justify-center my-1">
-                      <button
-                        onClick={() => setSelectedGuardForDetail(guard)}
-                        className="relative w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 border-2 border-slate-200 dark:border-slate-700 shadow-xs group-hover:scale-105 transition-transform duration-200 flex items-center justify-center cursor-pointer hover:border-blue-400 dark:hover:border-blue-600"
-                        title="Click to view guard details"
-                      >
-                        {guard.photoUrl ? (
-                          <img
-                            src={guard.photoUrl}
-                            alt={guard.fullName}
-                            className="w-full h-full object-cover object-top"
-                          />
-                        ) : (
-                          <span className="font-bold text-base text-slate-600 dark:text-slate-300 tracking-wider">
-                            {getInitials(guard.fullName)}
-                          </span>
-                        )}
-                      </button>
-                    </div>
-
-                    {/* Name and Badge ID */}
-                    <div className="text-center space-y-1">
-                      <h3 className="font-bold text-sm text-slate-900 dark:text-white line-clamp-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                        {guard.fullName}
-                      </h3>
-                      <div className="inline-block">
-                        <span className="font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/90 px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700/60">
-                          {guard.badgeId}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Shift & Details */}
-                    <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-                      {!((assignedInfo?.dutyPointName || guard.defaultDutyPoint?.name || '').toLowerCase().includes('outside')) && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] text-slate-400">Shift Type</span>
-                          <span
-                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              guard.shiftType === 'DAY'
-                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
-                                : guard.shiftType === 'NIGHT'
-                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
-                                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                            }`}
-                          >
-                            {guard.shiftType === 'DAY' ? (
-                              <>
-                                <Sun className="w-2.5 h-2.5" /> Day Shift
-                              </>
-                            ) : guard.shiftType === 'NIGHT' ? (
-                              <>
-                                <Moon className="w-2.5 h-2.5" /> Night Shift
-                              </>
-                            ) : (
-                              'Both Shifts'
-                            )}
-                          </span>
-                        </div>
-                      )}
-
-                      {guard.phone ? (
-                        <a
-                          href={`tel:${guard.phone}`}
-                          className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-slate-600 dark:text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800/60"
-                          title="Click to call guard"
-                        >
-                          <div className="flex items-center gap-1.5 font-mono text-xs">
-                            <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>{guard.phone}</span>
-                          </div>
-                          <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                            Call →
-                          </span>
-                        </a>
-                      ) : (
-                        <div className="text-center text-[11px] text-slate-400 italic py-1">
-                          No phone on file
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                  guard={guard}
+                  dutyPointName={assignedInfo?.dutyPointName}
+                  defaultDutyPointName={guard.defaultDutyPoint?.name}
+                  excused={!!excuse}
+                  excuseReason={excuse?.reason}
+                  activeShiftContext={assignMode ? (isDayShift ? 'DAY' : 'NIGHT') : null}
+                  topSlot={assignTopSlot}
+                  selectable
+                  selected={isSelected}
+                  onToggleSelect={() => toggleGuardSelection(guard.id)}
+                  modified={isModified}
+                  onOpenDetail={() => setSelectedGuardForDetail(guard)}
+                />
               )
             })}
           </div>
@@ -2083,6 +1936,14 @@ export default function GuardDirectoryPage() {
                   <div className="space-y-2">
                     <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Assignment Information</h4>
                     <div className="space-y-2 text-sm">
+                      {selectedGuardForDetail.designation && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 dark:text-slate-400">Designation:</span>
+                          <span className="font-semibold text-amber-700 dark:text-amber-300">
+                            ★ {selectedGuardForDetail.designation}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-between">
                         <span className="text-slate-500 dark:text-slate-400">Shift Type:</span>
                         <span className="font-medium text-slate-900 dark:text-white">
@@ -2101,6 +1962,14 @@ export default function GuardDirectoryPage() {
                           {getGuardRecentHistory(selectedGuardForDetail.id).currentPost}
                         </span>
                       </div>
+                      {excusedMap[selectedGuardForDetail.id] && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 dark:text-slate-400">Excuse Status:</span>
+                          <span className="font-semibold text-violet-700 dark:text-violet-300">
+                            Excused{excusedMap[selectedGuardForDetail.id].reason ? ` — ${excusedMap[selectedGuardForDetail.id].reason}` : ''}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -2122,7 +1991,7 @@ export default function GuardDirectoryPage() {
           </DialogContent>
         </Dialog>
 
-        {assignMode && (
+        {assignMode && selectedGuardIds.size === 0 && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white rounded-2xl p-3 px-5 shadow-2xl border border-slate-700 flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0" />

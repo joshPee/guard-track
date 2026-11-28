@@ -29,8 +29,12 @@ import {
   Layers,
   Share2,
   CalendarCheck,
+  List,
+  Loader2,
+  Columns2,
 } from 'lucide-react'
 import { PortalNavbar } from '@/components/PortalNavbar'
+import { GuardCard } from '@/components/GuardCard'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   DropdownMenu,
@@ -98,7 +102,7 @@ export default function AssignmentsPortalPage() {
   const [selectedDutyPointFilter, setSelectedDutyPointFilter] = useState('ALL')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [viewMode, setViewMode] = useState<'flat' | 'zone'>('flat')
+  const [viewMode, setViewMode] = useState<'flat' | 'zone' | 'table'>('flat')
   const [splitView, setSplitView] = useState(false)
   // Outside deployed count — shift-independent, derived from all assignments for the date
   const [outsideDeployedCount, setOutsideDeployedCount] = useState(0)
@@ -289,32 +293,43 @@ export default function AssignmentsPortalPage() {
   }, [dailyAssignments, dutyPoints])
 
   // Filtered assignments with memoization (excludes outside deployed on "ALL" view)
-  const filteredAssignments = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase()
-    return dailyAssignments.filter((assignment) => {
-      // Non-duty staff never appear on the roster
-      if (assignment.guard.excludeFromDuty) return false
+  const filterAssignmentList = useCallback(
+    (list: DailyAssignment[]) => {
+      const q = searchQuery.trim().toLowerCase()
+      return list.filter((assignment) => {
+        if (assignment.guard.excludeFromDuty) return false
 
-      const isOutside =
-        assignment.dutyPoint.name.toLowerCase().includes('outside deployment') ||
-        assignment.dutyPoint.name.toLowerCase().includes('outside')
+        const isOutside =
+          assignment.dutyPoint.name.toLowerCase().includes('outside deployment') ||
+          assignment.dutyPoint.name.toLowerCase().includes('outside')
 
-      const matchesSearch =
-        q === '' ||
-        assignment.guard.fullName.toLowerCase().includes(q) ||
-        assignment.guard.badgeId.toLowerCase().includes(q) ||
-        assignment.dutyPoint.name.toLowerCase().includes(q) ||
-        (assignment.guard.phone && assignment.guard.phone.includes(q))
+        const matchesSearch =
+          q === '' ||
+          assignment.guard.fullName.toLowerCase().includes(q) ||
+          assignment.guard.badgeId.toLowerCase().includes(q) ||
+          assignment.dutyPoint.name.toLowerCase().includes(q) ||
+          (assignment.guard.phone && assignment.guard.phone.includes(q))
 
-      // When "ALL" is selected without search query, exclude outside deployed personnel so campus roster matches totalAssigned
-      const matchesDutyPoint =
-        selectedDutyPointFilter === 'ALL'
-          ? q !== '' ? true : !isOutside
-          : assignment.dutyPoint.name === selectedDutyPointFilter
+        const matchesDutyPoint =
+          selectedDutyPointFilter === 'ALL'
+            ? q !== '' ? true : !isOutside
+            : assignment.dutyPoint.name === selectedDutyPointFilter
 
-      return matchesSearch && matchesDutyPoint
-    })
-  }, [dailyAssignments, searchQuery, selectedDutyPointFilter])
+        return matchesSearch && matchesDutyPoint
+      })
+    },
+    [searchQuery, selectedDutyPointFilter]
+  )
+
+  const filteredAssignments = useMemo(
+    () => filterAssignmentList(dailyAssignments),
+    [dailyAssignments, filterAssignmentList]
+  )
+
+  const filteredOppositeAssignments = useMemo(
+    () => filterAssignmentList(nightAssignments),
+    [nightAssignments, filterAssignmentList]
+  )
 
   // Group assignments by zone for zone-based view
   const assignmentsByZone = useMemo(() => {
@@ -502,155 +517,24 @@ export default function AssignmentsPortalPage() {
 
   const selectedShiftObj = shifts.find((s) => s.id === selectedShift)
   const isDayShift = selectedShiftObj?.name.toLowerCase().includes('day') ?? true
-
-  // Get initials for fallback avatar
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .filter(Boolean)
-      .map((part) => part[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase()
-  }
+  const oppositeShiftObj = useMemo(() => {
+    const dayShift = shifts.find((s) => s.name.toLowerCase().includes('day'))
+    const nightShift = shifts.find((s) => s.name.toLowerCase().includes('night'))
+    return selectedShift === dayShift?.id ? nightShift : dayShift
+  }, [shifts, selectedShift])
 
   // Render a single assignment card (reusable for both flat and zone views)
-  const renderAssignmentCard = (assignment: DailyAssignment) => {
-    const isOffDuty =
-      assignment.dutyPoint.name.toLowerCase().includes('off duty') ||
-      assignment.dutyPoint.name.toLowerCase().includes('off day')
-    const isOutside =
-      assignment.dutyPoint.name.toLowerCase().includes('outside deployment') ||
-      assignment.dutyPoint.name.toLowerCase().includes('outside')
-    const isExcused = !!assignment.excused
-
+  const renderAssignmentCard = (assignment: DailyAssignment, shiftCtx?: 'DAY' | 'NIGHT') => {
+    const ctx = shiftCtx ?? (isDayShift ? 'DAY' : 'NIGHT')
     return (
-      <Card
+      <GuardCard
         key={assignment.id}
-        className="group border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-md hover:border-blue-400 dark:hover:border-blue-600 transition-all duration-200 bg-white dark:bg-slate-900/90 rounded-2xl overflow-hidden flex flex-col justify-between"
-      >
-        <CardContent className="p-4 space-y-3.5 flex-1 flex flex-col justify-between">
-          {/* Top Duty Point Highlight */}
-          <div className="text-center">
-            {isExcused ? (
-              <div className="w-full inline-flex items-center justify-center gap-1.5 bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800 px-3 py-1.5 rounded-xl shadow-2xs">
-                <CalendarCheck className="h-3.5 w-3.5 text-violet-500 shrink-0" />
-                <span className="font-bold text-xs text-violet-700 dark:text-violet-300 truncate max-w-[200px]">
-                  Excused{assignment.excuseReason ? ` — ${assignment.excuseReason}` : ''}
-                </span>
-              </div>
-            ) : isOffDuty ? (
-              <div className="w-full inline-flex items-center justify-center gap-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-1.5 rounded-xl shadow-2xs text-slate-700 dark:text-slate-300">
-                <Moon className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                <span className="font-bold text-xs truncate max-w-[200px]">
-                  Off Duty (Day Off)
-                </span>
-              </div>
-            ) : isOutside ? (
-              <div className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/80 px-3 py-1.5 rounded-xl shadow-2xs text-blue-800 dark:text-blue-300">
-                <Building2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                <span className="font-bold text-xs truncate max-w-[200px]">
-                  Outside Deployment
-                </span>
-              </div>
-            ) : (
-              <div className="w-full inline-flex items-center justify-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/80 px-3 py-1.5 rounded-xl shadow-2xs">
-                <MapPin className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span className="font-bold text-xs text-emerald-800 dark:text-emerald-300 truncate max-w-[200px]">
-                  {assignment.dutyPoint.name}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Guard Photo or Initials Avatar */}
-          <div className="flex justify-center my-1">
-            <div className="relative w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 border-2 border-slate-200 dark:border-slate-700 shadow-xs group-hover:scale-105 transition-transform duration-200 flex items-center justify-center">
-              {assignment.guard.photoUrl ? (
-                <img
-                  src={assignment.guard.photoUrl}
-                  alt={assignment.guard.fullName}
-                  className="w-full h-full object-cover object-top"
-                />
-              ) : (
-                <span className="font-bold text-base text-slate-600 dark:text-slate-300 tracking-wider">
-                  {getInitials(assignment.guard.fullName)}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Name and Badge ID */}
-          <div className="text-center space-y-1">
-            <h3 className="font-bold text-sm text-slate-900 dark:text-white line-clamp-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-              {assignment.guard.fullName}
-            </h3>
-            <div className="inline-block">
-              <span className="font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/90 px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700/60">
-                {assignment.guard.badgeId}
-              </span>
-            </div>
-            {assignment.guard.designation && (
-              <div>
-                <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/60">
-                  ★ {assignment.guard.designation}
-                </span>
-              </div>
-            )}
-            {/* Excused status is shown in the top badge — no duplicate chip here */}
-          </div>
-
-          {/* Shift Badge (hidden for outside deployed guards) & Contact Phone */}
-          <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-            {!isOutside && (
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-400">Shift</span>
-                <span
-                  className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    assignment.guard.shiftType === 'DAY'
-                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
-                      : assignment.guard.shiftType === 'NIGHT'
-                      ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
-                      : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                  }`}
-                >
-                  {assignment.guard.shiftType === 'DAY' ? (
-                    <>
-                      <Sun className="w-2.5 h-2.5" /> Day Shift
-                    </>
-                  ) : assignment.guard.shiftType === 'NIGHT' ? (
-                    <>
-                      <Moon className="w-2.5 h-2.5" /> Night Shift
-                    </>
-                  ) : (
-                    'Both Shifts'
-                  )}
-                </span>
-              </div>
-            )}
-
-            {assignment.guard.phone ? (
-              <a
-                href={`tel:${assignment.guard.phone}`}
-                className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-slate-600 dark:text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800/60"
-                title="Click to call guard"
-              >
-                <div className="flex items-center gap-1.5 font-mono text-xs">
-                  <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>{assignment.guard.phone}</span>
-                </div>
-                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                  Call →
-                </span>
-              </a>
-            ) : (
-              <div className="text-center text-[11px] text-slate-400 italic py-1">
-                No phone on file
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+        guard={assignment.guard}
+        dutyPointName={assignment.dutyPoint.name}
+        excused={!!assignment.excused}
+        excuseReason={assignment.excuseReason}
+        activeShiftContext={ctx}
+      />
     )
   }
 
@@ -733,36 +617,61 @@ export default function AssignmentsPortalPage() {
           </div>
         </div>
 
-        {/* Uncovered Posts Alert Bar */}
+        {/* Understaffed Duty Points Notice */}
         {uncoveredPosts.length > 0 && (
-          <div className="print:hidden p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 text-amber-900 dark:text-amber-200 shadow-xs">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-amber-200/80 dark:bg-amber-800/60 flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-amber-800 dark:text-amber-200" />
+          <div className="print:hidden relative rounded-2xl bg-white dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500" />
+            <div className="p-4 sm:p-4.5 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white leading-tight">
+                      {uncoveredPosts.length} Understaffed Duty Point{uncoveredPosts.length > 1 ? 's' : ''}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Click a duty point to filter the roster
+                    </p>
+                  </div>
+                </div>
+
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/60 shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Needs Coverage
+                </span>
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <h3 className="text-sm font-bold text-amber-900 dark:text-amber-100">
-                    ⚠️ {uncoveredPosts.length} Understaffed Post{uncoveredPosts.length > 1 ? 's' : ''}
-                  </h3>
-                  <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 rounded-full">
-                    Critical
-                  </span>
-                </div>
-                <p className="text-xs text-amber-800 dark:text-amber-300 mb-2">
-                  The following duty points are below their required guard count:
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {uncoveredPosts.map((post) => (
-                    <span
+
+              <div className="flex flex-wrap gap-2">
+                {uncoveredPosts.map((post) => {
+                  const isActive = selectedDutyPointFilter === post.name
+                  const isVacant = post.assigned === 0
+                  return (
+                    <button
+                      type="button"
                       key={post.name}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700/60 text-xs font-semibold text-amber-900 dark:text-amber-200"
+                      onClick={() => setSelectedDutyPointFilter(isActive ? 'ALL' : post.name)}
+                      title={isActive ? 'Click to clear post filter' : `Filter roster by ${post.name}`}
+                      className={`group inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white shadow-xs'
+                          : 'bg-slate-50/80 dark:bg-slate-800/60 border-slate-200/90 dark:border-slate-700/70 text-slate-700 dark:text-slate-200 hover:bg-amber-50/70 hover:border-amber-300 dark:hover:bg-amber-950/30 dark:hover:border-amber-700/70'
+                      }`}
                     >
-                      <MapPin className="w-3 h-3" />
-                      {post.name} <span className="text-amber-600 dark:text-amber-400">({post.assigned}/{post.required})</span>
-                    </span>
-                  ))}
-                </div>
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                          isActive
+                            ? 'bg-amber-400 dark:bg-amber-600'
+                            : isVacant
+                            ? 'bg-rose-500'
+                            : 'bg-amber-500'
+                        }`}
+                      />
+                      <span className="truncate max-w-[200px]">{post.name}</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -814,12 +723,15 @@ export default function AssignmentsPortalPage() {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <Input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="h-9 text-xs sm:text-sm bg-slate-50/70 dark:bg-slate-800/60 font-medium"
-                  />
+                  <div className="relative flex-1 min-w-0">
+                    <Input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="h-9 w-full pr-9 text-xs sm:text-sm bg-slate-50/70 dark:bg-slate-800/60 font-medium [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:top-0 [&::-webkit-calendar-picker-indicator]:bottom-0 [&::-webkit-calendar-picker-indicator]:w-9 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                    />
+                    <Calendar className="w-4 h-4 text-slate-400 pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" />
+                  </div>
                   <Button
                     variant="outline"
                     size="icon"
@@ -900,14 +812,14 @@ export default function AssignmentsPortalPage() {
             </div>
 
             {/* Location Filter Bar — compact dropdown */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 flex-1">
-                <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
                 <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 shrink-0 whitespace-nowrap">
                   Filter Post
                 </Label>
                 <Select value={selectedDutyPointFilter} onValueChange={setSelectedDutyPointFilter}>
-                  <SelectTrigger className="h-8 text-xs flex-1 max-w-xs bg-slate-50/70 dark:bg-slate-800/60">
+                  <SelectTrigger className="h-8 text-xs flex-1 max-w-xs min-w-0 bg-slate-50/70 dark:bg-slate-800/60">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -928,50 +840,68 @@ export default function AssignmentsPortalPage() {
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-3">
-                {/* View Mode Toggle */}
-                <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800">
+              <div className="flex items-center gap-2 shrink-0 ml-auto">
+                {/* View Mode & Split View Icon Group */}
+                <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800">
                   <button
+                    type="button"
                     onClick={() => setViewMode('flat')}
-                    className={`p-1.5 rounded-md transition-all ${
+                    className={`w-7 h-7 inline-flex items-center justify-center rounded-md transition-all ${
                       viewMode === 'flat'
                         ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
                         : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                     }`}
-                    title="Flat List View"
+                    title="Flat Grid View"
                   >
-                    <Users className="w-3.5 h-3.5" />
+                    <Users className="w-4 h-4" />
                   </button>
                   <button
+                    type="button"
                     onClick={() => setViewMode('zone')}
-                    className={`p-1.5 rounded-md transition-all ${
+                    className={`w-7 h-7 inline-flex items-center justify-center rounded-md transition-all ${
                       viewMode === 'zone'
                         ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
                         : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                     }`}
                     title="Zone Grouping View"
                   >
-                    <Layers className="w-3.5 h-3.5" />
+                    <Layers className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('table')}
+                    className={`w-7 h-7 inline-flex items-center justify-center rounded-md transition-all ${
+                      viewMode === 'table'
+                        ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                    title="Compact Table View"
+                  >
+                    <List className="w-4 h-4" />
+                  </button>
+                  <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-0.5" />
+                  <button
+                    type="button"
+                    onClick={() => setSplitView(!splitView)}
+                    className={`w-7 h-7 inline-flex items-center justify-center rounded-md transition-all ${
+                      splitView
+                        ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                    title={splitView ? 'Exit Split View' : 'Split View (Day vs Night)'}
+                  >
+                    <Columns2 className="w-4 h-4" />
                   </button>
                 </div>
-                {/* Split View Toggle */}
-                <button
-                  onClick={() => setSplitView(!splitView)}
-                  className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
-                    splitView
-                      ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
-                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                  title="Compare Day vs Night shifts side-by-side"
-                >
-                  {splitView ? 'Exit Split' : 'Split View'}
-                </button>
-                <div className="text-[11px] text-slate-400 shrink-0">
-                  Showing {filteredAssignments.length} of{' '}
-                  {selectedDutyPointFilter === 'ALL'
-                    ? stats.totalAssigned
-                    : dutyPointsList.find(([name]) => name === selectedDutyPointFilter)?.[1] ?? stats.totalAssigned}{' '}
-                  guards
+                <div className="text-[11px] text-slate-400 shrink-0 flex items-center gap-1.5 whitespace-nowrap">
+                  {refreshing && <Loader2 className="w-3 h-3 animate-spin text-blue-500" />}
+                  <span>
+                    Showing {filteredAssignments.length} of{' '}
+                    {selectedDutyPointFilter === 'ALL'
+                      ? stats.totalAssigned
+                      : dutyPointsList.find(([name]) => name === selectedDutyPointFilter)?.[1] ?? stats.totalAssigned}{' '}
+                    guards
+                  </span>
                 </div>
               </div>
             </div>
@@ -979,106 +909,135 @@ export default function AssignmentsPortalPage() {
         </Card>
 
         {/* Operational KPI Counters */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:grid-cols-4 print:hidden">
-          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
-            <CardContent className="p-3.5 text-center">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Assigned</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-                {stats.totalAssigned}
-              </p>
-              <p className="text-[10px] text-slate-400 mt-0.5">
-                Excludes outside
-              </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 print:grid-cols-4 print:hidden">
+          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-sm transition-all bg-white dark:bg-slate-900/95 rounded-2xl">
+            <CardContent className="p-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Assigned</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight tabular-nums mt-0.5">
+                  {stats.totalAssigned}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Excludes outside</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
+                <Users className="w-5 h-5" />
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
-            <CardContent className="p-3.5 text-center">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Campus Posts</p>
-              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight mt-0.5">
-                {stats.campusCount}
-              </p>
-              <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">{stats.pointsCount} duty points</p>
+          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-sm transition-all bg-white dark:bg-slate-900/95 rounded-2xl">
+            <CardContent className="p-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Campus Posts</p>
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tracking-tight tabular-nums mt-0.5">
+                  {stats.campusCount}
+                </p>
+                <p className="text-[11px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">{stats.pointsCount} duty points</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <MapPin className="w-5 h-5" />
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
-            <CardContent className="p-3.5 text-center">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Outside Deployed</p>
-              <p className="text-2xl font-black text-blue-600 dark:text-blue-400 tracking-tight mt-0.5">
-                {outsideDeployedCount}
-              </p>
-              <p className="text-[10px] text-blue-500/80 dark:text-blue-400/80 mt-0.5">External deployment</p>
+          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-sm transition-all bg-white dark:bg-slate-900/95 rounded-2xl">
+            <CardContent className="p-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Outside Deployed</p>
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 tracking-tight tabular-nums mt-0.5">
+                  {outsideDeployedCount}
+                </p>
+                <p className="text-[11px] text-blue-500/80 dark:text-blue-400/80 mt-0.5">External deployment</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <Building2 className="w-5 h-5" />
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-900/90 rounded-xl">
-            <CardContent className="p-3.5 text-center">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Off Duty</p>
-              <p className="text-2xl font-black text-slate-700 dark:text-slate-300 tracking-tight mt-0.5">
-                {stats.offDutyCount}
-              </p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Scheduled day off</p>
+          <Card className="border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-sm transition-all bg-white dark:bg-slate-900/95 rounded-2xl">
+            <CardContent className="p-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Off Duty</p>
+                <p className="text-2xl font-bold text-slate-700 dark:text-slate-300 tracking-tight tabular-nums mt-0.5">
+                  {stats.offDutyCount}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Scheduled day off</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center shrink-0">
+                <Moon className="w-5 h-5" />
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Split View: Day vs Night Side-by-Side */}
+        {/* Split View: Selected Shift vs Opposite Shift Side-by-Side */}
         {splitView && !loading && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:hidden">
-            {/* Day Shift Column */}
+          <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 print:hidden transition-opacity ${refreshing ? 'opacity-60' : ''}`}>
+            {/* Primary Selected Shift Column */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 px-2">
-                <Sun className="w-4 h-4 text-amber-500" />
+                {isDayShift ? (
+                  <Sun className="w-4 h-4 text-amber-500" />
+                ) : (
+                  <Moon className="w-4 h-4 text-indigo-400" />
+                )}
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wide">
-                  Day Shift
+                  {selectedShiftObj?.name || (isDayShift ? 'Day Shift' : 'Night Shift')}
                 </h3>
                 <span className="text-xs text-slate-500">
                   ({filteredAssignments.length} guard{filteredAssignments.length !== 1 ? 's' : ''})
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {filteredAssignments.map((assignment) => renderAssignmentCard(assignment))}
+                {filteredAssignments.map((assignment) =>
+                  renderAssignmentCard(assignment, isDayShift ? 'DAY' : 'NIGHT')
+                )}
               </div>
             </div>
 
-            {/* Night Shift Column */}
+            {/* Opposite Shift Column */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 px-2">
-                <Moon className="w-4 h-4 text-indigo-400" />
+                {isDayShift ? (
+                  <Moon className="w-4 h-4 text-indigo-400" />
+                ) : (
+                  <Sun className="w-4 h-4 text-amber-500" />
+                )}
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wide">
-                  Night Shift
+                  {oppositeShiftObj?.name || (isDayShift ? 'Night Shift' : 'Day Shift')}
                 </h3>
                 <span className="text-xs text-slate-500">
-                  ({nightAssignments.length} guard{nightAssignments.length !== 1 ? 's' : ''})
+                  ({filteredOppositeAssignments.length} guard{filteredOppositeAssignments.length !== 1 ? 's' : ''})
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {nightAssignments.map((assignment) => renderAssignmentCard(assignment))}
+                {filteredOppositeAssignments.map((assignment) =>
+                  renderAssignmentCard(assignment, isDayShift ? 'NIGHT' : 'DAY')
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* Content Section: Skeletons, Empty State, or Card Grid (screen only) */}
-        <div className="print:hidden">
+        {/* Content Section: Skeletons, Empty State, Table, or Card Grid (screen only) */}
+        <div className={`print:hidden transition-opacity ${refreshing ? 'opacity-60' : ''}`}>
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
-                className="p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-3"
+                className="p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-3"
               >
-                <Skeleton className="h-7 w-3/4 mx-auto rounded-lg" />
-                <div className="flex justify-center">
-                  <Skeleton className="h-20 w-20 rounded-full" />
+                <Skeleton className="h-7 w-full rounded-xl" />
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-12 w-12 rounded-full shrink-0" />
+                  <div className="space-y-1.5 flex-1">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
                 </div>
-                <div className="space-y-1.5 text-center">
-                  <Skeleton className="h-4 w-32 mx-auto" />
-                  <Skeleton className="h-3 w-16 mx-auto" />
-                </div>
-                <Skeleton className="h-5 w-24 mx-auto rounded-full" />
-                <Skeleton className="h-6 w-full rounded-lg" />
+                <Skeleton className="h-8 w-full rounded-lg" />
               </div>
             ))}
           </div>
@@ -1117,6 +1076,84 @@ export default function AssignmentsPortalPage() {
               )}
             </CardContent>
           </Card>
+        ) : viewMode === 'table' ? (
+          /* On-Screen Compact Table View */
+          <div className="border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900/90 shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-slate-800/70 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider">
+                  <tr>
+                    <th className="py-3 px-3 w-10">#</th>
+                    <th className="py-3 px-4">Duty Point</th>
+                    <th className="py-3 px-4">Guard Name</th>
+                    <th className="py-3 px-4">Badge ID</th>
+                    <th className="py-3 px-4">Shift</th>
+                    <th className="py-3 px-4">Phone</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {printRosterRows.map((row, i) =>
+                    row.type === 'header' ? (
+                      <tr key={`tbl-hdr-${row.point}-${i}`} className="bg-slate-50/80 dark:bg-slate-800/40">
+                        <td colSpan={6} className="py-2 px-4 font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide">
+                          {row.point}{' '}
+                          <span className="font-normal normal-case text-slate-500">
+                            ({row.count} guard{row.count !== 1 ? 's' : ''})
+                          </span>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr key={row.assignment.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                        <td className="py-2.5 px-3 font-mono text-slate-400">{row.sn}</td>
+                        <td className="py-2.5 px-4">
+                          {row.assignment.excused ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 font-semibold">
+                              Excused{row.assignment.excuseReason ? ` — ${row.assignment.excuseReason}` : ''}
+                            </span>
+                          ) : (
+                            <span className="font-medium text-slate-700 dark:text-slate-300">
+                              {row.assignment.dutyPoint.name}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-4 font-semibold text-slate-900 dark:text-white">
+                          {row.assignment.guard.fullName}
+                          {row.assignment.guard.designation && (
+                            <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">
+                              ★ {row.assignment.guard.designation}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-4 font-mono text-slate-600 dark:text-slate-400">
+                          {row.assignment.guard.badgeId}
+                        </td>
+                        <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
+                          {row.assignment.guard.shiftType === 'DAY'
+                            ? 'Day'
+                            : row.assignment.guard.shiftType === 'NIGHT'
+                            ? 'Night'
+                            : 'Both'}
+                        </td>
+                        <td className="py-2.5 px-4">
+                          {row.assignment.guard.phone ? (
+                            <a
+                              href={`tel:${row.assignment.guard.phone}`}
+                              className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 font-mono"
+                            >
+                              <Phone className="w-3 h-3 text-emerald-600" />
+                              {row.assignment.guard.phone}
+                            </a>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : viewMode === 'zone' ? (
           /* Zone Grouped View */
           <div className="space-y-6">
