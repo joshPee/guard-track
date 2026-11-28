@@ -55,6 +55,37 @@ export async function GET(req: Request) {
       ],
     })
 
+    // Attach approved excused/leave status for the requested date so the
+    // public roster can badge excused guards (they keep their post occupied).
+    if (date && assignments.length > 0) {
+      const leaveModel = (prisma as any).leaveRecord
+      if (leaveModel) {
+        const dayStart = new Date(date)
+        dayStart.setHours(0, 0, 0, 0)
+        const dayEnd = new Date(date)
+        dayEnd.setHours(23, 59, 59, 999)
+        const guardIds = Array.from(new Set(assignments.map((a) => a.guard.id)))
+        const leaves: Array<{ guardId: string; type: string; reason: string | null }> = await leaveModel.findMany({
+          where: {
+            status: 'APPROVED',
+            guardId: { in: guardIds },
+            startDate: { lte: dayEnd },
+            endDate: { gte: dayStart },
+          },
+          select: { guardId: true, type: true, reason: true },
+        })
+        const byGuard = new Map(leaves.map((l: any) => [l.guardId, l]))
+        assignments.forEach((a: any) => {
+          const l = byGuard.get(a.guard.id)
+          if (l) {
+            a.excused = true
+            a.excuseType = l.type
+            a.excuseReason = l.reason
+          }
+        })
+      }
+    }
+
     return NextResponse.json(assignments)
   } catch (error) {
     console.error('Error fetching daily assignments:', error)

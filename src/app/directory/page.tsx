@@ -457,12 +457,14 @@ export default function GuardDirectoryPage() {
         .map((guardId) => ({ guardId, val: assignmentsDraft[guardId] || '' }))
         .filter((e) => e.val.startsWith('excused:'))
 
-      // Construct batch array for only modified guards (excused guards get '' → assignment cleared)
+      // Construct batch array for only modified guards.
+      // Excused guards KEEP their current post assignment so the duty point
+      // stays occupied on the roster (marked "Excused" instead of vacant).
       const batchPayload = Array.from(modifiedGuards).map((guardId) => {
         const val = assignmentsDraft[guardId] || ''
         return {
           guardId,
-          dutyPointId: val.startsWith('excused:') ? '' : val,
+          dutyPointId: val.startsWith('excused:') ? assignmentMap.get(guardId)?.dutyPointId || '' : val,
           shiftId: selectedShift,
           date: selectedDate,
         }
@@ -498,6 +500,20 @@ export default function GuardDirectoryPage() {
         if (leaveRes.ok) excusedCount++
       }
 
+      // Reflect excuses immediately without waiting for the leave refetch
+      if (excusedEntries.length > 0) {
+        setExcusedMap((prev) => {
+          const next = { ...prev }
+          for (const e of excusedEntries) {
+            next[e.guardId] = {
+              type: 'EXCUSED',
+              reason: EXCUSE_LABELS[e.val.split(':')[1] || 'OTHER'] || 'Excused',
+            }
+          }
+          return next
+        })
+      }
+
       await fetchDailyAssignments(true)
       setAssignMode(false)
       setModifiedGuards(new Set())
@@ -511,7 +527,7 @@ export default function GuardDirectoryPage() {
     } finally {
       setSaving(false)
     }
-  }, [modifiedGuards, assignmentsDraft, selectedShift, selectedDate, fetchDailyAssignments])
+  }, [modifiedGuards, assignmentsDraft, selectedShift, selectedDate, fetchDailyAssignments, assignmentMap])
 
   // KPI Statistics
   const stats = useMemo(() => {
@@ -1560,7 +1576,8 @@ export default function GuardDirectoryPage() {
                               </Button>
                             </div>
                           ) : assignedInfo ? (
-                            (() => {
+                            <div className="flex flex-wrap items-center gap-1.5">
+                            {(() => {
                               const isOffDuty = assignedInfo.dutyPointName.toLowerCase().includes('off duty')
                               const isOutside = assignedInfo.dutyPointName.toLowerCase().includes('outside')
                               if (isOffDuty) {
@@ -1585,7 +1602,16 @@ export default function GuardDirectoryPage() {
                                   {assignedInfo.dutyPointName}
                                 </span>
                               )
-                            })()
+                            })()}
+                            {excusedMap[guard.id] && (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 font-semibold text-[11px]"
+                                title={excusedMap[guard.id].reason || 'Approved excuse'}
+                              >
+                                {excusedMap[guard.id].type === 'EXCUSED' ? '🤒' : '🏥'} Excused
+                              </span>
+                            )}
+                            </div>
                           ) : excusedMap[guard.id] ? (
                             <span
                               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 font-semibold text-[11px]"
@@ -1618,6 +1644,14 @@ export default function GuardDirectoryPage() {
                             {isModified && (
                               <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">
                                 Modified
+                              </span>
+                            )}
+                            {excusedMap[guard.id] && (
+                              <span
+                                className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300 border border-violet-200/60 dark:border-violet-800/60"
+                                title={excusedMap[guard.id].reason || 'Approved excuse'}
+                              >
+                                Excused
                               </span>
                             )}
                           </div>
@@ -1755,9 +1789,18 @@ export default function GuardDirectoryPage() {
                               ● Pending Save
                             </span>
                           )}
+                          {excusedMap[guard.id] && (
+                            <span
+                              className="text-[10px] font-bold text-violet-600 dark:text-violet-400 block"
+                              title={excusedMap[guard.id].reason || 'Approved excuse'}
+                            >
+                              🏥 Excused{excusedMap[guard.id].reason ? ` — ${excusedMap[guard.id].reason}` : ''}
+                            </span>
+                          )}
                         </div>
                       ) : assignedInfo ? (
-                        (() => {
+                        <div className="space-y-1.5">
+                        {(() => {
                           const isOffDuty = assignedInfo.dutyPointName.toLowerCase().includes('off duty')
                           const isOutside = assignedInfo.dutyPointName.toLowerCase().includes('outside')
                           if (isOffDuty) {
@@ -1788,7 +1831,16 @@ export default function GuardDirectoryPage() {
                               </span>
                             </div>
                           )
-                        })()
+                        })()}
+                        {excusedMap[guard.id] && (
+                          <div className="w-full inline-flex items-center justify-center gap-1.5 bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800 px-3 py-1 rounded-lg">
+                            <CalendarX className="h-3 w-3 text-violet-500 shrink-0" />
+                            <span className="font-bold text-[11px] text-violet-700 dark:text-violet-300">
+                              Excused{excusedMap[guard.id].reason ? ` — ${excusedMap[guard.id].reason}` : ''}
+                            </span>
+                          </div>
+                        )}
+                        </div>
                       ) : excusedMap[guard.id] ? (
                         <div className="w-full inline-flex items-center justify-center gap-1.5 bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800 px-3 py-1.5 rounded-xl">
                           <CalendarX className="h-3.5 w-3.5 text-violet-500 shrink-0" />

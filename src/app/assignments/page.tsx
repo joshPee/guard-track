@@ -81,6 +81,9 @@ interface DailyAssignment {
     name: string
   }
   date: string
+  excused?: boolean
+  excuseType?: string | null
+  excuseReason?: string | null
 }
 
 export default function AssignmentsPortalPage() {
@@ -621,6 +624,17 @@ export default function AssignmentsPortalPage() {
               <div>
                 <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/60">
                   ★ {assignment.guard.designation}
+                </span>
+              </div>
+            )}
+            {assignment.excused && (
+              <div>
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-violet-50 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300 border border-violet-200/70 dark:border-violet-800/60"
+                  title={assignment.excuseReason || 'Approved excuse / leave'}
+                >
+                  {assignment.excuseType === 'EXCUSED' ? '🤒' : '🏥'} Excused
+                  {assignment.excuseReason ? ` — ${assignment.excuseReason}` : ''}
                 </span>
               </div>
             )}
@@ -1238,7 +1252,10 @@ export default function AssignmentsPortalPage() {
                 ) : (
                   <tr key={row.assignment.id}>
                     <td className="border border-black px-2 py-1 text-center">{row.sn}</td>
-                    <td className="border border-black px-2 py-1 font-semibold">{row.assignment.guard.fullName}</td>
+                    <td className="border border-black px-2 py-1 font-semibold">
+                      {row.assignment.guard.fullName}
+                      {row.assignment.excused ? ' (Excused)' : ''}
+                    </td>
                     <td className="border border-black px-2 py-1">{row.assignment.guard.badgeId}</td>
                     <td className="border border-black px-2 py-1">{row.assignment.guard.phone || '—'}</td>
                     <td className="border border-black px-2 py-1">
