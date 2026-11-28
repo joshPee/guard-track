@@ -59,21 +59,19 @@ export async function GET(req: Request) {
     // public roster can badge excused guards (they keep their post occupied).
     const includeExcused = searchParams.get('includeExcused') === '1'
     if (date) {
-      const leaveModel = (prisma as any).leaveRecord
-      if (leaveModel) {
+      {
         const dayStart = new Date(date)
         dayStart.setHours(0, 0, 0, 0)
         const dayEnd = new Date(date)
         dayEnd.setHours(23, 59, 59, 999)
         const assignedGuardIds = new Set(assignments.map((a) => a.guard.id))
-        const leaves: Array<{ guardId: string; type: string; reason: string | null }> = await leaveModel.findMany({
-          where: {
-            status: 'APPROVED',
-            startDate: { lte: dayEnd },
-            endDate: { gte: dayStart },
-          },
-          select: { guardId: true, type: true, reason: true },
-        })
+        const leaves: Array<{ guardId: string; type: string; reason: string | null }> =
+          await prisma.$queryRawUnsafe(
+            `SELECT "guardId", type, reason FROM leave_records
+             WHERE status = 'APPROVED' AND "startDate" <= $1 AND "endDate" >= $2`,
+            dayEnd,
+            dayStart
+          )
         const byGuard = new Map(leaves.map((l) => [l.guardId, l]))
         assignments.forEach((a: any) => {
           const l = byGuard.get(a.guard.id)

@@ -104,8 +104,6 @@ export default function AssignmentsPortalPage() {
   const [outsideDeployedCount, setOutsideDeployedCount] = useState(0)
   // Dynamic greeting for Mr. Achaab based on time of day
   const [greeting, setGreeting] = useState('Good day')
-  // Guards excused/on approved leave overlapping the selected date
-  const [excusedGuards, setExcusedGuards] = useState<Array<{ guardId: string; guardName: string; type: string; refNumber: string | null }>>([])
 
   useEffect(() => {
     const hour = new Date().getHours()
@@ -113,43 +111,6 @@ export default function AssignmentsPortalPage() {
     else if (hour < 17) setGreeting('Good afternoon')
     else setGreeting('Good evening')
   }, [])
-
-  // Fetch approved leave/excuses overlapping the selected roster date
-  useEffect(() => {
-    if (!selectedDate) return
-    let cancelled = false
-    const dayStart = new Date(selectedDate)
-    dayStart.setHours(0, 0, 0, 0)
-    const dayEnd = new Date(selectedDate)
-    dayEnd.setHours(23, 59, 59, 999)
-
-    fetch('/api/leave?status=APPROVED')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled || !data?.records) return
-        const overlapping = data.records.filter((r: any) => {
-          const s = new Date(r.startDate)
-          const e = new Date(r.endDate)
-          e.setHours(23, 59, 59, 999)
-          return s <= dayEnd && e >= dayStart
-        })
-        // One entry per guard (latest record wins)
-        const byGuard = new Map<string, any>()
-        overlapping.forEach((r: any) => byGuard.set(r.guardId, r))
-        setExcusedGuards(
-          Array.from(byGuard.values()).map((r: any) => ({
-            guardId: r.guardId,
-            guardName: r.guardName,
-            type: r.type,
-            refNumber: r.refNumber,
-          }))
-        )
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [selectedDate])
 
   // Fetch shifts, duty points, and zones on initial mount
   useEffect(() => {
@@ -303,9 +264,10 @@ export default function AssignmentsPortalPage() {
     }
 
     // Count assigned guards per duty point for the current shift
+    // (excused/on-leave guards do NOT count — their post needs covering)
     const assignedCounts = new Map<string, number>()
     dailyAssignments.forEach((a) => {
-      if (isExcluded(a.dutyPoint.name)) return
+      if (isExcluded(a.dutyPoint.name) || a.excused) return
       assignedCounts.set(a.dutyPoint.name, (assignedCounts.get(a.dutyPoint.name) || 0) + 1)
     })
 
@@ -560,7 +522,7 @@ export default function AssignmentsPortalPage() {
     const isOutside =
       assignment.dutyPoint.name.toLowerCase().includes('outside deployment') ||
       assignment.dutyPoint.name.toLowerCase().includes('outside')
-    const isExcusedOnly = assignment.excused && assignment.dutyPoint.name === 'Excused'
+    const isExcused = !!assignment.excused
 
     return (
       <Card
@@ -570,7 +532,7 @@ export default function AssignmentsPortalPage() {
         <CardContent className="p-4 space-y-3.5 flex-1 flex flex-col justify-between">
           {/* Top Duty Point Highlight */}
           <div className="text-center">
-            {isExcusedOnly ? (
+            {isExcused ? (
               <div className="w-full inline-flex items-center justify-center gap-1.5 bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800 px-3 py-1.5 rounded-xl shadow-2xs">
                 <CalendarCheck className="h-3.5 w-3.5 text-violet-500 shrink-0" />
                 <span className="font-bold text-xs text-violet-700 dark:text-violet-300 truncate max-w-[200px]">
@@ -635,17 +597,7 @@ export default function AssignmentsPortalPage() {
                 </span>
               </div>
             )}
-            {assignment.excused && !isExcusedOnly && (
-              <div>
-                <span
-                  className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-violet-50 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300 border border-violet-200/70 dark:border-violet-800/60"
-                  title={assignment.excuseReason || 'Approved excuse / leave'}
-                >
-                  {assignment.excuseType === 'EXCUSED' ? '🤒' : '🏥'} Excused
-                  {assignment.excuseReason ? ` — ${assignment.excuseReason}` : ''}
-                </span>
-              </div>
-            )}
+            {/* Excused status is shown in the top badge — no duplicate chip here */}
           </div>
 
           {/* Shift Badge (hidden for outside deployed guards) & Contact Phone */}
@@ -808,39 +760,6 @@ export default function AssignmentsPortalPage() {
                     >
                       <MapPin className="w-3 h-3" />
                       {post.name} <span className="text-amber-600 dark:text-amber-400">({post.assigned}/{post.required})</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Excused / On Leave strip */}
-        {excusedGuards.length > 0 && (
-          <div className="print:hidden p-4 rounded-2xl bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800/60 text-violet-900 dark:text-violet-200 shadow-xs">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-violet-200/80 dark:bg-violet-800/60 flex items-center justify-center">
-                <CalendarCheck className="w-5 h-5 text-violet-700 dark:text-violet-200" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-bold text-violet-900 dark:text-violet-100 mb-1">
-                  {excusedGuards.length} Guard{excusedGuards.length > 1 ? 's' : ''} Excused / On Leave
-                </h3>
-                <p className="text-xs text-violet-700 dark:text-violet-300 mb-2">
-                  Approved leave or excuse covering {new Date(selectedDate).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} — plan coverage accordingly:
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {excusedGuards.map((g) => (
-                    <span
-                      key={g.guardId}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white dark:bg-violet-900/40 border border-violet-300 dark:border-violet-700/60 text-xs font-semibold text-violet-900 dark:text-violet-200"
-                      title={g.refNumber ? `Ref: ${g.refNumber}` : undefined}
-                    >
-                      {g.guardName}
-                      <span className="text-violet-500 dark:text-violet-400 font-normal">
-                        ({g.type === 'EXCUSED' ? 'Excused' : g.type === 'EXCUSED_CLINIC' ? 'Clinic' : 'Leave'})
-                      </span>
                     </span>
                   ))}
                 </div>
